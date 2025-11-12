@@ -297,7 +297,7 @@ export default function Chat() {
 
                           if (
                             isToolUIPart(part) &&
-                            m.id.startsWith("assistant")
+                            m.role === "assistant"
                           ) {
                             const toolCallId = part.toolCallId;
                             const toolName = part.type.replace("tool-", "");
@@ -305,9 +305,6 @@ export default function Chat() {
                               toolsRequiringConfirmation.includes(
                                 toolName as keyof typeof tools
                               );
-
-                            // Skip rendering the card in debug mode
-                            if (showDebug) return null;
 
                             return (
                               <ToolInvocationCard
