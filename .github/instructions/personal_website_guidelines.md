@@ -14,6 +14,7 @@ This project is a Cloudflare Agents-powered chat application built with React 19
 - **Build Tool**: Vite 7+
 - **Styling**: Tailwind CSS 4 (native CSS with `@theme` and custom variants)
 - **AI SDK**: Vercel AI SDK with OpenAI provider
+- **Design**: Figma (source of truth for UI components)
 - **Linting**: Biome (NOT ESLint/Prettier for code - Prettier only for non-code files)
 - **Package Manager**: npm
 - **Module System**: ES Modules (ES2022)
@@ -390,6 +391,33 @@ useEffect(() => {
 
 ## Component Architecture
 
+### Front-End Component Development Process
+
+**Always consult Figma designs before implementing or modifying front-end components.**
+
+1. **Retrieve Figma Design**:
+   - Use Figma MCP server to access component designs
+   - Use `get_design_context` for detailed component specifications
+   - Use `get_screenshot` to visualize the design element
+
+2. **Save Figma Reference**:
+   - Place Figma-generated code in `figma/` directory
+   - Use the same component name: `figma/ComponentName.tsx`
+   - Keep as reference for styling and structure
+
+3. **Implement Component**:
+   - Create actual component in `src/components/component-name/ComponentName.tsx`
+   - Follow project patterns (polymorphic components, named exports, etc.)
+   - Match Figma specifications for colors, spacing, typography, and layout
+   - Adapt Figma code to project conventions (use `cn()`, Tailwind classes, etc.)
+
+4. **Cross-Reference**:
+   - Verify implementation matches Figma design specifications
+   - Ensure all variants and states from Figma are implemented
+   - Check responsive behavior matches design system
+
+**If Figma URL or node ID is unknown, ask the user to provide it before proceeding.**
+
 ### Polymorphic Component Pattern
 
 Use the `as` prop pattern for flexible component composition:
@@ -650,6 +678,12 @@ src/
     ├── index.tsx        # Export all providers
     ├── ModalProvider.tsx
     └── TooltipProvider.tsx
+
+figma/                   # Figma-generated reference files
+├── button.tsx           # Design reference for Button component
+├── card.tsx             # Design reference for Card component
+├── Guidelines.md        # Figma design system documentation
+└── ...                  # Other component references from Figma
 ```
 
 ### Naming Conventions
@@ -1072,6 +1106,8 @@ setState({ ...state, value: newValue });
 
 When creating new code:
 
+- [ ] **Consult Figma designs first** for front-end components
+- [ ] **Save Figma references** to `figma/` directory
 - [ ] Use TypeScript with strict types
 - [ ] Import types with `type` keyword
 - [ ] Use named exports for components
@@ -1088,3 +1124,4 @@ When creating new code:
 - [ ] Clean up tool calls before API requests
 - [ ] Memoize expensive computations
 - [ ] Follow Tailwind CSS v4 patterns (`@theme`, `@variant`)
+- [ ] **Verify implementation matches Figma specifications**

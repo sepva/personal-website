@@ -71,6 +71,12 @@ The following Model Context Protocol (MCP) servers are available to enhance your
   - Manage database entries
   - Collaborate on Notion workspaces
 
+- **`figma`**: Access Figma designs and extract component specifications
+  - Retrieve design context and UI code for specific nodes
+  - Get design system rules and component mappings
+  - Capture screenshots of design elements
+  - Access variable definitions for consistent styling
+
 ### File Processing
 
 - **`microsoft/markitdown`**: Convert various file formats to markdown
@@ -83,8 +89,47 @@ The following Model Context Protocol (MCP) servers are available to enhance your
 - **GitHub operations**: Use `github/github-mcp-server` when working with GitHub features beyond the workspace
 - **Web interaction**: Use `microsoft/playwright-mcp` for testing web pages or extracting web content
 - **External files**: Use `microsoft/markitdown` to convert external documents to readable format
+- **Figma designs**: Use `figma` MCP server when working on front-end components to retrieve design specifications and ensure implementation matches designs
 
 ## Working Methodology
+
+### Figma Design Integration Workflow
+
+**For all front-end component work, always consult Figma designs first.**
+
+#### When to Use Figma MCP
+
+Use the Figma MCP server whenever:
+- Creating new UI components
+- Modifying existing component styles
+- Implementing design system changes
+- Ensuring visual consistency with designs
+
+#### Figma Workflow Steps
+
+1. **Retrieve Design Context**: Use Figma MCP tools to get component specifications for the relevant design node
+2. **Extract Component Code**: Use `get_design_context` to generate UI code with proper styling and structure
+3. **Save to Figma Directory**: Place the generated Figma code in the `figma/` directory for reference
+4. **Adapt for Project**: Modify the Figma-generated code to match project patterns and conventions
+5. **Verify Implementation**: Cross-reference the final implementation with design specifications
+
+#### Figma File Placement
+
+- **Always** place Figma-generated files in the `figma/` directory
+- If uncertain about the Figma URL or node ID, **ask the user** to provide it or confirm the placement
+- Use the Figma files as a source of truth for styling, spacing, and visual properties
+- Adapt component structure to match existing project patterns while preserving design fidelity
+
+#### Example Workflow
+
+```typescript
+// 1. User asks to create a new Button component
+// 2. Use Figma MCP to retrieve button design context
+// 3. Save Figma output to figma/button.tsx
+// 4. Review project patterns in src/components/button/Button.tsx
+// 5. Implement component using Figma specs + project conventions
+// 6. Ensure styling matches Figma (colors, spacing, typography)
+```
 
 ### Phase 1: Understanding
 
@@ -93,9 +138,10 @@ Before making any changes:
 1. **Read Current State**: Use `read_file` to examine relevant files
 2. **Search for Context**: Use `semantic_search` or `grep_search` to find related code, patterns, and dependencies
 3. **Leverage MCP Servers**: Use MCP servers to access documentation, examples, or external context when needed
-4. **Check Dependencies**: Review `package.json` and existing imports to understand available libraries
-5. **Review Conventions**: Ensure you understand project-specific patterns from instruction files
-6. **Ask If Unclear**: If the task or requirements are ambiguous, ask clarifying questions before proceeding
+4. **Consult Figma Designs**: For front-end components, use the Figma MCP server to retrieve design specifications and ensure accurate implementation
+5. **Check Dependencies**: Review `package.json` and existing imports to understand available libraries
+6. **Review Conventions**: Ensure you understand project-specific patterns from instruction files
+7. **Ask If Unclear**: If the task or requirements are ambiguous, ask clarifying questions before proceeding
 
 ### Phase 2: Planning
 
