@@ -7,17 +7,11 @@ import type {
   ToolCallOptions
 } from "ai";
 import { convertToModelMessages, isToolUIPart } from "ai";
-import { APPROVAL } from "./shared";
 
-function isValidToolName<K extends PropertyKey, T extends object>(
-  key: K,
-  obj: T
-): key is K & keyof T {
-  return key in obj;
-}
+
 
 /**
- * Processes tool invocations where human input is required, executing tools when authorized.
+ * Processes tool invocations automatically, executing tools as soon as input is available.
  */
 export async function processToolCalls<Tools extends ToolSet>({
   dataStream,
@@ -49,33 +43,23 @@ export async function processToolCalls<Tools extends ToolSet>({
             ""
           ) as keyof typeof executions;
 
-          // Only process tools that require confirmation (are in executions object) and are in 'input-available' state
-          if (!(toolName in executions) || part.state !== "output-available")
-            return part;
+          // Only process tools that are in executions object and are in 'input-available' state
+          if (!(toolName in executions)) return part;
+          if (part.state !== "input-available") return part;
 
-          let result: unknown;
-
-          if (part.output === APPROVAL.YES) {
-            // User approved the tool execution
-            if (!isValidToolName(toolName, executions)) {
-              return part;
-            }
-
-            const toolInstance = executions[toolName];
-            if (toolInstance) {
-              result = await toolInstance(part.input, {
-                messages: convertToModelMessages(messages),
-                toolCallId: part.toolCallId
-              });
-            } else {
-              result = "Error: No execute function found on tool";
-            }
-          } else if (part.output === APPROVAL.NO) {
-            result = "Error: User denied access to tool execution";
-          } else {
-            // If no approval input yet, leave the part as-is for user interaction
-            return part;
+          const toolInstance = executions[toolName];
+          if (!toolInstance) {
+            return {
+              ...part,
+              output: "Error: No execute function found on tool",
+              state: "output-available" as const
+            };
           }
+
+          const result = await toolInstance(part.input, {
+            messages: convertToModelMessages(messages),
+            toolCallId: part.toolCallId
+          });
 
           // Forward updated tool result to the client.
           dataStream.write({
@@ -84,10 +68,11 @@ export async function processToolCalls<Tools extends ToolSet>({
             output: result
           });
 
-          // Return updated tool part with the actual result.
+          // Return updated tool part with the actual result and correct state
           return {
             ...part,
-            output: result
+            output: result,
+            state: "output-available" as const
           };
         })
       );

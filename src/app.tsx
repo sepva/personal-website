@@ -4,7 +4,6 @@ import { useAgent } from "agents/react";
 import { isToolUIPart } from "ai";
 import { useAgentChat } from "agents/ai-react";
 import type { UIMessage } from "@ai-sdk/react";
-import type { tools } from "./tools";
 
 // Figma component imports
 import { ChatBubble } from "@/components/chat-bubble/ChatBubble";
@@ -14,7 +13,6 @@ import { Sidebar } from "@/components/sidebar/Sidebar";
 import { MobileMenu } from "@/components/menu-bar/MobileMenu";
 import { ChatInput } from "@/components/chat-input/ChatInput";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
-import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 
 type MessageType = 'bot' | 'user' | 'system';
 
@@ -33,7 +31,7 @@ export default function Chat() {
       {
         id: '1',
         type: 'bot',
-        content: "Hi! I'm your AI assistant. I can help you with weather information and time zones. What would you like to know about?"
+        content: "Hi! I'm your the personal AI assistant of Seppe Vanswegenoven. Ask me anything about his academics, professional projects, or personal projects.",
       },
       {
         id: '2',
@@ -57,7 +55,6 @@ export default function Chat() {
 
   const {
     messages: agentMessages,
-    addToolResult,
     clearHistory,
     status,
     sendMessage
@@ -157,40 +154,7 @@ export default function Chat() {
               );
             })}
 
-            {/* Render tool invocations from agent messages */}
-            {agentMessages.map((m) => (
-              <div key={`tools-${m.id}`}>
-                {m.parts?.map((part, i) => {
-                  if (isToolUIPart(part) && m.role === "assistant") {
-                    const toolCallId = part.toolCallId;
 
-                    return (
-                      <ToolInvocationCard
-                        // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here
-                        key={`${toolCallId}-${i}`}
-                        toolUIPart={part}
-                        toolCallId={toolCallId}
-                        onSubmit={({ toolCallId, result }) => {
-                          addToolResult({
-                            tool: part.type.replace("tool-", ""),
-                            toolCallId,
-                            output: result
-                          });
-                        }}
-                        addToolResult={(toolCallId, result) => {
-                          addToolResult({
-                            tool: part.type.replace("tool-", ""),
-                            toolCallId,
-                            output: result
-                          });
-                        }}
-                      />
-                    );
-                  }
-                  return null;
-                })}
-              </div>
-            ))}
 
             <div ref={messagesEndRef} />
           </div>

@@ -6,26 +6,38 @@ import { tool, type ToolSet } from "ai";
 import { z } from "zod/v3";
 
 /**
- * Weather information tool that requires human confirmation
- * When invoked, this will present a confirmation dialog to the user
+ * Academic information tool: when called, provides the relevant academic details
  */
-const getWeatherInformation = tool({
-  description: "show the weather in a given city to the user",
-  inputSchema: z.object({ city: z.string() })
-  // Omitting execute function makes this tool require human confirmation
+const getAcademicInformation = tool({
+  description: "Provide academic information about Seppe Vanswegenoven",
+  inputSchema: z.object({ query: z.string() }),
+  execute: async ({ query }) => {
+    console.log(`Getting academic information for query: ${query}`);
+    return "Seppe Vanswegenoven studied Computer Science at KU Leuven.";
+  }
 });
 
 /**
- * Local time tool that executes automatically
- * Since it includes an execute function, it will run without user confirmation
- * This is suitable for low-risk operations that don't need oversight
+ * Professional projects tool: when called, provides relevant professional project details
  */
-const getLocalTime = tool({
-  description: "get the local time for a specified location",
-  inputSchema: z.object({ location: z.string() }),
-  execute: async ({ location }) => {
-    console.log(`Getting local time for ${location}`);
-    return "10am";
+const getProfessionalProjects = tool({
+  description: "Provide information about Seppe Vanswegenoven's professional projects",
+  inputSchema: z.object({ query: z.string() }),
+  execute: async ({ query }) => {
+    console.log(`Getting professional project information for query: ${query}`);
+    return "Seppe Vanswegenoven has worked on several professional projects including a web application for managing tasks and a mobile app for fitness tracking.";
+  }
+});
+
+/**
+ * Personal projects tool: when called, provides relevant personal project details
+ */
+const getPersonalProjects = tool({
+  description: "Provide information about Seppe Vanswegenoven's personal projects",
+  inputSchema: z.object({ query: z.string() }),
+  execute: async ({ query }) => {
+    console.log(`Getting personal project information for query: ${query}`);
+    return "Seppe Vanswegenoven has developed a personal blog platform and an open-source library for data visualization.";
   }
 });
 
@@ -34,18 +46,7 @@ const getLocalTime = tool({
  * These will be provided to the AI model to describe available capabilities
  */
 export const tools = {
-  getWeatherInformation,
-  getLocalTime
+  getAcademicInformation,
+  getProfessionalProjects,
+  getPersonalProjects
 } satisfies ToolSet;
-
-/**
- * Implementation of confirmation-required tools
- * This object contains the actual logic for tools that need human approval
- * Each function here corresponds to a tool above that doesn't have an execute function
- */
-export const executions = {
-  getWeatherInformation: async ({ city }: { city: string }) => {
-    console.log(`Getting weather information for ${city}`);
-    return `The weather in ${city} is sunny`;
-  }
-};

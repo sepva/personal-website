@@ -11,8 +11,7 @@ import {
   type ToolSet
 } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { processToolCalls, cleanupMessages } from "./utils";
-import { tools, executions } from "./tools";
+import { tools } from "./tools";
 // import { env } from "cloudflare:workers";
 
 const model = openai("gpt-4o-2024-11-20");
@@ -45,22 +44,10 @@ export class Chat extends AIChatAgent<Env> {
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
-        // Clean up incomplete tool calls to prevent API errors
-        const cleanedMessages = cleanupMessages(this.messages);
-
-        // Process any pending tool calls from previous messages
-        // This handles human-in-the-loop confirmations for tools
-        const processedMessages = await processToolCalls({
-          messages: cleanedMessages,
-          dataStream: writer,
-          tools: allTools,
-          executions
-        });
-
         const result = streamText({
           system: `You are a helpful assistant that can do various tasks...`,
 
-          messages: convertToModelMessages(processedMessages),
+          messages: convertToModelMessages(this.messages),
           model,
           tools: allTools,
           // Type boundary: streamText expects specific tool types, but base class uses ToolSet

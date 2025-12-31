@@ -1,13 +1,13 @@
-import { Cloud, Clock, HelpCircle } from 'lucide-react';
+import { GraduationCap, BriefcaseBusiness, SquareTerminal } from 'lucide-react';
 
 interface CategoryTilesProps {
   onSelect: (category: string) => void;
 }
 
 export const categories = [
-  { id: 'weather', label: 'Weather Info', icon: Cloud, color: '#5560FF', prompt: 'Tell me about weather information' },
-  { id: 'time', label: 'Time Zones', icon: Clock, color: '#B8A7FF', prompt: 'What time zone information can you help with?' },
-  { id: 'help', label: 'Help', icon: HelpCircle, color: '#A7FFE4', prompt: 'What can you help me with?' }
+  { id: 'Academics', label: 'Academics', icon: GraduationCap, color: '#5560FF', prompt: 'What did you study?' },
+  { id: 'Professional Projects', label: 'Professional Projects', icon: BriefcaseBusiness, color: '#B8A7FF', prompt: 'What professional projects have you worked on?' },
+  { id: 'Personal Projects', label: 'Personal Projects', icon: SquareTerminal, color: '#A7FFE4', prompt: 'What personal projects are you proud of?' }
 ];
 
 export function CategoryTiles({ onSelect }: CategoryTilesProps) {

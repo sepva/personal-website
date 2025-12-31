@@ -1,67 +1,60 @@
 import { useState } from "react";
 import type { ToolUIPart } from "ai";
-import { Robot, CaretDown } from "@phosphor-icons/react";
-import { Button } from "@/components/button/Button";
-import { Card } from "@/components/card/Card";
-import { APPROVAL } from "@/shared";
 
-interface ToolResultWithContent {
-  content: Array<{ type: string; text: string }>;
-}
+export function ToolInvocationCard({ toolUIPart, toolCallId }: { toolUIPart: ToolUIPart; toolCallId: string }) {
 
-function isToolResultWithContent(
-  result: unknown
-): result is ToolResultWithContent {
-  return (
-    typeof result === "object" &&
-    result !== null &&
-    "content" in result &&
-    Array.isArray((result as ToolResultWithContent).content)
-  );
-}
 
-interface ToolInvocationCardProps {
-  toolUIPart: ToolUIPart;
-  toolCallId: string;
-  onSubmit: ({
-    toolCallId,
-    result
-  }: {
-    toolCallId: string;
-    result: string;
-  }) => void;
-  addToolResult: (toolCallId: string, result: string) => void;
-}
 
-export function ToolInvocationCard({
-  toolUIPart,
-  toolCallId,
-  onSubmit
-  // addToolResult
-}: ToolInvocationCardProps) {
+
+
+
   const [isExpanded, setIsExpanded] = useState(true);
 
+  // Inline helper for result content
+  function renderResultContent(result: unknown) {
+    if (
+      typeof result === "object" &&
+      result !== null &&
+      "content" in result &&
+      Array.isArray((result as any).content)
+    ) {
+      return (result as any).content
+        .map((item: { type: string; text: string }) => {
+          if (
+            item.type === "text" &&
+            item.text.startsWith("\n~ Page URL:")
+          ) {
+            const lines = item.text.split("\n").filter(Boolean);
+            return lines
+              .map((line: string) => `- ${line.replace("\n~ ", "")}`)
+              .join("\n");
+          }
+          return item.text;
+        })
+        .join("\n");
+    }
+    return JSON.stringify(result, null, 2);
+  }
+
   return (
-    <Card className="p-4 my-3 w-full max-w-[500px] rounded-md bg-neutral-100 dark:bg-neutral-900 overflow-hidden">
+    <div className="p-4 my-3 w-full max-w-[500px] rounded-md bg-neutral-100 dark:bg-neutral-900 overflow-hidden">
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center gap-2 cursor-pointer"
       >
-        <div
-                className={`bg-[#F48120]/5 p-1.5 rounded-full flex-shrink-0`}
-        >
-          <Robot size={16} className="text-[#F48120]" />
-        </div>
+        <span className="bg-[#F48120]/5 p-1.5 rounded-full flex-shrink-0">
+          {/* Icon placeholder */}
+          <span className="inline-block w-4 h-4 bg-[#F48120] rounded-full" />
+        </span>
         <h4 className="font-medium flex items-center gap-2 flex-1 text-left">
           {toolUIPart.type}
           {toolUIPart.state === "output-available" && (
             <span className="text-xs text-[#F48120]/70">✓ Completed</span>
           )}
         </h4>
-        <CaretDown
-          size={16}
-          className={`text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
+        <span
+          className={`inline-block w-4 h-4 border-b-2 border-r-2 border-muted-foreground rotate-45 transition-transform ${isExpanded ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -81,24 +74,7 @@ export function ToolInvocationCard({
             </pre>
           </div>
 
-          {toolUIPart.state === "input-available" && (
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => onSubmit({ toolCallId, result: APPROVAL.NO })}
-              >
-                Reject
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => onSubmit({ toolCallId, result: APPROVAL.YES })}
-              >
-                Approve
-              </Button>
-            </div>
-          )}
+          {/* Tool approval UI removed: tools now execute automatically */}
 
           {toolUIPart.state === "output-available" && (
             <div className="mt-3 border-t border-[#F48120]/10 pt-3">
@@ -106,33 +82,12 @@ export function ToolInvocationCard({
                 Result:
               </h5>
               <pre className="bg-background/80 p-2 rounded-md text-xs overflow-auto whitespace-pre-wrap break-words max-w-[450px]">
-                {(() => {
-                  const result = toolUIPart.output;
-                  if (isToolResultWithContent(result)) {
-                    return result.content
-                      .map((item: { type: string; text: string }) => {
-                        if (
-                          item.type === "text" &&
-                          item.text.startsWith("\n~ Page URL:")
-                        ) {
-                          const lines = item.text.split("\n").filter(Boolean);
-                          return lines
-                            .map(
-                              (line: string) => `- ${line.replace("\n~ ", "")}`
-                            )
-                            .join("\n");
-                        }
-                        return item.text;
-                      })
-                      .join("\n");
-                  }
-                  return JSON.stringify(result, null, 2);
-                })()}
+                {renderResultContent(toolUIPart.output)}
               </pre>
             </div>
           )}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
