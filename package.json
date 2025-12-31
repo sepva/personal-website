@@ -6,7 +6,8 @@
 	"private": true,
 	"scripts": {
 		"start": "vite dev",
-		"deploy": "vite build && wrangler deploy",
+		"set_secrets": "wrangler secret bulk .dev.vars",
+		"deploy": "vite build && wrangler secret bulk .dev.vars && wrangler deploy",
 		"test": "vitest",
 		"types": "wrangler types env.d.ts --include-runtime false",
 		"format": "prettier --write .",

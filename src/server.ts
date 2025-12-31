@@ -73,10 +73,19 @@ export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
     const url = new URL(request.url);
 
-    return (
-      // Route the request to our agent or return 404 if not found
-      (await routeAgentRequest(request, env)) ||
-      new Response("Not found", { status: 404 })
-    );
+    // Try routing to the agent first (for API endpoints like /api/chat)
+    const agentResponse = await routeAgentRequest(request, env);
+    if (agentResponse) {
+      return agentResponse;
+    }
+
+    // Serve static assets from the public directory
+    // @ts-expect-error - ASSETS is provided by Cloudflare Workers when assets.directory is configured
+    if (env.ASSETS) {
+      // @ts-expect-error - ASSETS.fetch is the standard way to serve static files
+      return env.ASSETS.fetch(request);
+    }
+
+    return new Response("Not found", { status: 404 });
   }
 } satisfies ExportedHandler<Env>;
