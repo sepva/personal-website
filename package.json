@@ -50,6 +50,7 @@
 		"ai": "^5.0.86",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
+		"langsmith": "^0.4.4",
 		"lucide-react": "^0.553.0",
 		"marked": "^16.4.1",
 		"react": "^19.2.0",

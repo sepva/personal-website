@@ -1,7 +1,6 @@
 import { routeAgentRequest } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
-  streamText,
   type StreamTextOnFinishCallback,
   stepCountIs,
   createUIMessageStream,
@@ -9,11 +8,14 @@ import {
   createUIMessageStreamResponse,
   type ToolSet
 } from "ai";
+import * as ai from "ai";
 import { openai } from "@ai-sdk/openai";
+import { wrapAISDK, createLangSmithProviderOptions } from "langsmith/experimental/vercel"
 import { tools } from "./tools";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
 // import { env } from "cloudflare:workers";
 
+const { generateText, streamText, generateObject, streamObject } = wrapAISDK(ai);
 const model = openai("gpt-4o-2024-11-20");
 // Cloudflare AI Gateway
 // const openai = createOpenAI({
@@ -25,6 +27,18 @@ const model = openai("gpt-4o-2024-11-20");
  * Chat Agent implementation that handles real-time AI chat interactions
  */
 export class Chat extends AIChatAgent<Env> {
+
+  private connectionId?: string;
+
+  /**
+   * Called when a WebSocket connection is established
+   * Captures the connection ID for session tracking
+   */
+  async onConnect(connection: any) {
+    this.connectionId = connection.id;
+    console.log(`Chat session started with connection ID: ${this.connectionId}`);
+  }
+
   /**
    * Handles incoming chat messages and manages the response stream
    */
@@ -46,10 +60,16 @@ export class Chat extends AIChatAgent<Env> {
       execute: async ({ writer }) => {
         const result = streamText({
           system: systemPrompt,
-
           messages: convertToModelMessages(this.messages),
           model,
           tools: allTools,
+          providerOptions: {
+            langsmith: createLangSmithProviderOptions({
+              metadata: {
+                session_id: this.connectionId || "unknown",
+              }
+            })
+          },
           // Type boundary: streamText expects specific tool types, but base class uses ToolSet
           // This is safe because our tools satisfy ToolSet interface (verified by 'satisfies' in tools.ts)
           onFinish: onFinish as unknown as StreamTextOnFinishCallback<

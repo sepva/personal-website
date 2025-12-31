@@ -31,7 +31,7 @@ export default function Chat() {
       {
         id: '1',
         type: 'bot',
-        content: "Hi! I'm your the personal AI assistant of Seppe Vanswegenoven. Ask me anything about his academics, professional projects, or personal projects.",
+        content: "Hi! I'm the personal AI assistant of Seppe Vanswegenoven. Ask me anything about his academics, professional projects, or personal projects.",
       },
       {
         id: '2',
