@@ -4,7 +4,7 @@ interface CategoryTilesProps {
   onSelect: (category: string) => void;
 }
 
-const categories = [
+export const categories = [
   { id: 'weather', label: 'Weather Info', icon: Cloud, color: '#5560FF', prompt: 'Tell me about weather information' },
   { id: 'time', label: 'Time Zones', icon: Clock, color: '#B8A7FF', prompt: 'What time zone information can you help with?' },
   { id: 'help', label: 'Help', icon: HelpCircle, color: '#A7FFE4', prompt: 'What can you help me with?' }

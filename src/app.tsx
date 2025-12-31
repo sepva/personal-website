@@ -8,18 +8,13 @@ import type { tools } from "./tools";
 
 // Figma component imports
 import { ChatBubble } from "@/components/chat-bubble/ChatBubble";
-import { CategoryTiles } from "@/components/category-tiles/CategoryTiles";
+import { CategoryTiles, categories } from "@/components/category-tiles/CategoryTiles";
 import { SuggestionChips } from "@/components/suggestion-chips/SuggestionChips";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { MobileMenu } from "@/components/menu-bar/MobileMenu";
 import { ChatInput } from "@/components/chat-input/ChatInput";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
-
-// List of tools that require human confirmation
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  "getWeatherInformation"
-];
 
 type MessageType = 'bot' | 'user' | 'system';
 
@@ -31,28 +26,22 @@ interface CustomMessage {
   data?: any;
 }
 
-const initialSuggestions = [
-  "What's the weather in San Francisco?",
-  "What time is it in Tokyo?",
-  "Show me the current time",
-  "Tell me about the weather"
-];
-
 export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const [customMessages, setCustomMessages] = useState<CustomMessage[]>([
-    {
-      id: '1',
-      type: 'bot',
-      content: "Hi! I'm your AI assistant. I can help you with weather information and time zones. What would you like to know about?"
-    },
-    {
-      id: '2',
-      type: 'bot',
-      component: 'categories',
-      data: {}
-    }
-  ]);
+      {
+        id: '1',
+        type: 'bot',
+        content: "Hi! I'm your AI assistant. I can help you with weather information and time zones. What would you like to know about?"
+      },
+      {
+        id: '2',
+        type: 'bot',
+        component: 'categories',
+        data: {}
+      }
+    ]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -83,25 +72,9 @@ export default function Chat() {
     }
   }, [agentMessages]);
 
-  const pendingToolCallConfirmation = agentMessages.some((m: UIMessage) =>
-    m.parts?.some(
-      (part) =>
-        isToolUIPart(part) &&
-        part.state === "input-available" &&
-        toolsRequiringConfirmation.includes(
-          part.type.replace("tool-", "") as keyof typeof tools
-        )
-    )
-  );
-
   const handleCategorySelect = async (category: string) => {
-    const prompts: Record<string, string> = {
-      weather: "Tell me about weather information you can provide",
-      time: "What time zone information can you help with?",
-      help: "What can you help me with?"
-    };
 
-    const message = prompts[category] || "Help me with this";
+    const message = categories.find(cat => cat.id === category)?.prompt || "Help me with this";
     
     // Send to backend agent
     await sendMessage({
@@ -122,19 +95,7 @@ export default function Chat() {
 
   const handleNewChat = () => {
     clearHistory();
-    setCustomMessages([
-      {
-        id: '1',
-        type: 'bot',
-        content: "Hi! I'm your AI assistant. I can help you with weather information and time zones. What would you like to know about?"
-      },
-      {
-        id: '2',
-        type: 'bot',
-        component: 'categories',
-        data: {}
-      }
-    ]);
+    setCustomMessages(customMessages);
   };
 
   // Combine custom UI messages with agent messages for display
@@ -179,7 +140,7 @@ export default function Chat() {
                 return (
                   <div key={message.id} className="max-w-[85%]">
                     <SuggestionChips
-                      suggestions={message.data?.suggestions || initialSuggestions}
+                      suggestions={message.data?.suggestions}
                       onSelect={handleUserMessage}
                     />
                   </div>
@@ -202,10 +163,6 @@ export default function Chat() {
                 {m.parts?.map((part, i) => {
                   if (isToolUIPart(part) && m.role === "assistant") {
                     const toolCallId = part.toolCallId;
-                    const toolName = part.type.replace("tool-", "");
-                    const needsConfirmation = toolsRequiringConfirmation.includes(
-                      toolName as keyof typeof tools
-                    );
 
                     return (
                       <ToolInvocationCard
@@ -213,7 +170,6 @@ export default function Chat() {
                         key={`${toolCallId}-${i}`}
                         toolUIPart={part}
                         toolCallId={toolCallId}
-                        needsConfirmation={needsConfirmation}
                         onSubmit={({ toolCallId, result }) => {
                           addToolResult({
                             tool: part.type.replace("tool-", ""),
@@ -245,7 +201,7 @@ export default function Chat() {
           <div className="max-w-[900px] mx-auto">
             <ChatInput
               onSend={handleUserMessage}
-              disabled={pendingToolCallConfirmation || status === "submitted" || status === "streaming"}
+              disabled={status === "submitted" || status === "streaming"}
             />
           </div>
         </div>

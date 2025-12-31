@@ -1,10 +1,7 @@
-import { routeAgentRequest, type Schedule } from "agents";
-
-import { getSchedulePrompt } from "agents/schedule";
+import { routeAgentRequest } from "agents";
 
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
-  generateId,
   streamText,
   type StreamTextOnFinishCallback,
   stepCountIs,
@@ -61,12 +58,7 @@ export class Chat extends AIChatAgent<Env> {
         });
 
         const result = streamText({
-          system: `You are a helpful assistant that can do various tasks... 
-
-${getSchedulePrompt({ date: new Date() })}
-
-If the user asks to schedule a task, use the schedule tool to schedule the task.
-`,
+          system: `You are a helpful assistant that can do various tasks...`,
 
           messages: convertToModelMessages(processedMessages),
           model,
@@ -84,24 +76,6 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
     });
 
     return createUIMessageStreamResponse({ stream });
-  }
-  async executeTask(description: string, _task: Schedule<string>) {
-    await this.saveMessages([
-      ...this.messages,
-      {
-        id: generateId(),
-        role: "user",
-        parts: [
-          {
-            type: "text",
-            text: `Running scheduled task: ${description}`
-          }
-        ],
-        metadata: {
-          createdAt: new Date()
-        }
-      }
-    ]);
   }
 }
 
