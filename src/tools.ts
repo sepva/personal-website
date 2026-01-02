@@ -8,12 +8,16 @@ import { z } from "zod/v3";
 /**
  * Academic information tool: when called, provides the relevant academic details
  */
-const getAcademicInformation = tool({
-  description: "Provide academic information about Seppe Vanswegenoven",
-  inputSchema: z.object({ query: z.string() }),
-  execute: async ({ query }) => {
-    console.log(`Getting academic information for query: ${query}`);
-    return "Seppe Vanswegenoven studied Computer Science at KU Leuven.";
+const getAcademicOverviewPage = tool({
+  description: "Provide a UI component that shows an overview of academic information about Seppe Vanswegenoven",
+  inputSchema: z.object({}),
+  execute: async () => {
+    // Return a serializable object that indicates a component should be rendered
+    return {
+      type: 'react-component',
+      componentName: 'AcademicOverviewPage',
+      message: 'Here is the academic overview page:'
+    };
   }
 });
 
@@ -46,7 +50,7 @@ const getPersonalProjects = tool({
  * These will be provided to the AI model to describe available capabilities
  */
 export const tools = {
-  getAcademicInformation,
+  getAcademicOverviewPage,
   getProfessionalProjects,
   getPersonalProjects
 } satisfies ToolSet;

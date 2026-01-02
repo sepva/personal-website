@@ -12,14 +12,14 @@ import { Sidebar } from "@/components/sidebar/Sidebar";
 import { MobileMenu } from "@/components/menu-bar/MobileMenu";
 import { ChatInput } from "@/components/chat-input/ChatInput";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
-
+import { AcademicOverviewPage } from "@/components/overview-page/AcademicOverviewPage";
 type MessageType = 'bot' | 'user' | 'system';
 
 interface CustomMessage {
   id: string;
   type: MessageType;
   content?: string;
-  component?: 'categories' | 'suggestions';
+  component?: 'categories' | 'suggestions' | 'AcademicOverviewPage';
   data?: any;
 }
 
@@ -101,7 +101,7 @@ export default function Chat() {
   };
 
   // Combine custom UI messages with agent messages for display
-  const displayMessages = [...customMessages];
+  const displayMessages: CustomMessage[] = [...customMessages];
   
   // Add agent messages after the initial custom messages
   agentMessages.forEach((m) => {
@@ -115,6 +115,31 @@ export default function Chat() {
           type: isUser ? 'user' : 'bot',
           content: part.text
         });
+      }
+      // Handle tool results that contain React components
+      if (part.type && part.type.startsWith('tool-')) {
+        const toolPart = part as any;
+        if (toolPart.state === 'output-available' && toolPart.output) {
+          const output = toolPart.output;
+          // Check if the output indicates a React component should be rendered
+          if (output.type === 'react-component' && output.componentName) {
+            // Add a text message first
+            if (output.message) {
+              displayMessages.push({
+                id: `${m.id}-${part.type}-message`,
+                type: 'bot',
+                content: output.message,
+              });
+            }
+            // Add the component message
+            displayMessages.push({
+              id: `${m.id}-${part.type}-component`,
+              type: 'bot',
+              component: output.componentName as any,
+              data: output.data || {},
+            });
+          }
+        }
       }
     });
   });
@@ -145,6 +170,14 @@ export default function Chat() {
                       onSelect={handleUserMessage}
                     />
                   </div>
+                );
+              }
+
+              if (message.component === 'AcademicOverviewPage') {
+                return (
+                  <ChatBubble key={message.id} type={message.type}>
+                    <AcademicOverviewPage />
+                  </ChatBubble>
                 );
               }
 

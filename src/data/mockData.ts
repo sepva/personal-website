@@ -179,6 +179,7 @@ export const academic = [
     description: 'Research project on improving code generation efficiency for RISC-V architecture.',
     tags: ['Compilers', 'RISC-V', 'Optimization'],
     type: 'academic' as const,
+    link_to_article: 'https://example.com/risc-v-compiler-optimization',
     date: 'December 2023',
     fullContent: `Graduate research project focused on optimizing the LLVM backend for RISC-V processors.
 
