@@ -34,7 +34,41 @@
   --shadow-panel: 0 12px 24px rgba(0,0,0,0.08);
 }
 
-/* Markdown Table Styling (Tailwind @apply) */
+/* Markdown Body Styling */
+.markdown-body {
+  @apply text-neutral-900 dark:text-neutral-100 leading-relaxed;
+}
+
+/* Ensure proper line height and spacing */
+.markdown-body p {
+  @apply leading-7;
+}
+
+/* List styling with proper markers */
+.markdown-body ul {
+  @apply list-disc;
+}
+
+.markdown-body ol {
+  @apply list-decimal;
+}
+
+.markdown-body li {
+  @apply ml-4;
+}
+
+/* Nested list styling */
+.markdown-body ul ul,
+.markdown-body ol ul {
+  @apply list-[circle] mt-2;
+}
+
+.markdown-body ul ol,
+.markdown-body ol ol {
+  @apply list-[lower-alpha] mt-2;
+}
+
+/* Markdown Table Styling */
 .markdown-body table {
   @apply w-full border-collapse my-4 text-[0.95em];
 }

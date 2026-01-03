@@ -1,35 +1,66 @@
-import { marked } from "marked";
-import type { Tokens } from "marked";
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Components } from "react-markdown";
 
-function parseMarkdownIntoBlocks(markdown: string): string[] {
-  const tokens: TokensList = marked.lexer(markdown);
-  return tokens.map((token: Tokens.Generic) => token.raw);
-}
-
-type TokensList = Array<Tokens.Generic & { raw: string }>;
-
-const MemoizedMarkdownBlock = memo(
-  ({ content }: { content: string }) => (
-    <div className="markdown-body">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-    </div>
+const markdownComponents: Components = {
+  // Ensure proper spacing for paragraphs
+  p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+  
+  // Style headings with proper spacing
+  h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 mt-6 first:mt-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-xl font-bold mb-3 mt-5 first:mt-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-lg font-bold mb-3 mt-4 first:mt-0">{children}</h3>,
+  
+  // Style lists with proper spacing and bullets/numbers
+  ul: ({ children }) => <ul className="mb-4 space-y-2 pl-6 list-disc">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-4 space-y-2 pl-6 list-decimal">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  
+  // Style blockquotes
+  blockquote: ({ children }) => (
+    <blockquote className="border-l-4 border-neutral-300 dark:border-neutral-700 pl-4 my-4 italic">
+      {children}
+    </blockquote>
   ),
-  (prevProps, nextProps) => prevProps.content === nextProps.content
-);
-
-MemoizedMarkdownBlock.displayName = "MemoizedMarkdownBlock";
+  
+  // Style code blocks
+  pre: ({ children }) => (
+    <pre className="bg-neutral-100 dark:bg-neutral-850 rounded-lg p-4 my-4 overflow-x-auto">
+      {children}
+    </pre>
+  ),
+  code: ({ children, className }) => {
+    const isInline = !className?.includes('language-');
+    return isInline ? (
+      <code className="bg-neutral-100 dark:bg-neutral-850 rounded px-1.5 py-0.5 text-sm">
+        {children}
+      </code>
+    ) : (
+      <code className={className}>{children}</code>
+    );
+  },
+  
+  // Style strong and emphasis
+  strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+};
 
 export const MemoizedMarkdown = memo(
   ({ content, id }: { content: string; id: string }) => {
-    const blocks = useMemo(() => parseMarkdownIntoBlocks(content), [content]);
-    return blocks.map((block, index) => (
-      // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
-      <MemoizedMarkdownBlock content={block} key={`${id}-block_${index}`} />
-    ));
-  }
+    return (
+      <div className="markdown-body prose prose-neutral dark:prose-invert max-w-none">
+        <ReactMarkdown 
+          remarkPlugins={[remarkGfm]}
+          components={markdownComponents}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
+    );
+  },
+  (prevProps, nextProps) => 
+    prevProps.content === nextProps.content && prevProps.id === nextProps.id
 );
 
 MemoizedMarkdown.displayName = "MemoizedMarkdown";
