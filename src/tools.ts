@@ -4,19 +4,22 @@
  */
 import { tool, type ToolSet } from "ai";
 import { z } from "zod/v3";
+import * as data from "@/data/mockData";
 
 /**
  * Academic information tool: when called, provides the relevant academic details
  */
 const getAcademicOverviewPage = tool({
-  description: "Provide a UI component that shows an overview of academic information about Seppe Vanswegenoven",
-  inputSchema: z.object({}),
-  execute: async () => {
+  description: `Calling this tool will provide a UI component in the chat that shows an overview of academic work Seppe Vanswegenoven has done. 
+  Use the message input to send a message before the UI component is shown. The data part of the return value contains all academic items that are shown in the UI.`,
+  inputSchema: z.object({message: z.string()}),
+  execute: async ({ message }) => {
     // Return a serializable object that indicates a component should be rendered
     return {
       type: 'react-component',
+      data: data.academic,
       componentName: 'AcademicOverviewPage',
-      message: 'Here is the academic overview page:'
+      message: message
     };
   }
 });
@@ -25,11 +28,17 @@ const getAcademicOverviewPage = tool({
  * Professional projects tool: when called, provides relevant professional project details
  */
 const getProfessionalProjects = tool({
-  description: "Provide information about Seppe Vanswegenoven's professional projects",
-  inputSchema: z.object({ query: z.string() }),
-  execute: async ({ query }) => {
-    console.log(`Getting professional project information for query: ${query}`);
-    return "Seppe Vanswegenoven has worked on several professional projects including a web application for managing tasks and a mobile app for fitness tracking.";
+  description: `Calling this tool will provide a UI component in the chat that shows an overview of professional projects Seppe Vanswegenoven has worked on.
+  Use the message input to send a message before the UI component is shown. The data part of the return value contains all professional project items that are shown in the UI.`,
+  inputSchema: z.object({message: z.string()}),
+  execute: async ({ message }) => {
+    // Return a serializable object that indicates a component should be rendered
+    return {
+      type: 'react-component',
+      data: data.work,
+      componentName: 'ProfessionalProjectsOverviewPage',
+      message: message
+    };
   }
 });
 
@@ -37,11 +46,17 @@ const getProfessionalProjects = tool({
  * Personal projects tool: when called, provides relevant personal project details
  */
 const getPersonalProjects = tool({
-  description: "Provide information about Seppe Vanswegenoven's personal projects",
-  inputSchema: z.object({ query: z.string() }),
-  execute: async ({ query }) => {
-    console.log(`Getting personal project information for query: ${query}`);
-    return "Seppe Vanswegenoven has developed a personal blog platform and an open-source library for data visualization.";
+  description: `Calling this tool will provide a UI component in the chat that shows an overview of personal projects Seppe Vanswegenoven has developed.
+  Use the message input to send a message before the UI component is shown. The data part of the return value contains all personal project items that are shown in the UI.`,
+  inputSchema: z.object({message: z.string()}),
+  execute: async ({ message }) => {
+    // Return a serializable object that indicates a component should be rendered
+    return {
+      type: 'react-component',
+      data: data.projects,
+      componentName: 'PersonalProjectsOverviewPage',
+      message: message
+    };
   }
 });
 

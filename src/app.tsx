@@ -13,13 +13,15 @@ import { MobileMenu } from "@/components/menu-bar/MobileMenu";
 import { ChatInput } from "@/components/chat-input/ChatInput";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { AcademicOverviewPage } from "@/components/overview-page/AcademicOverviewPage";
+import { PersonalProjectsOverviewPage } from "./components/overview-page/PersonalProjectsOverviewPage";
+import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";
 type MessageType = 'bot' | 'user' | 'system';
 
 interface CustomMessage {
   id: string;
   type: MessageType;
   content?: string;
-  component?: 'categories' | 'suggestions' | 'AcademicOverviewPage';
+  component?: 'categories' | 'suggestions' | 'AcademicOverviewPage' | 'PersonalProjectsOverviewPage' | 'ProfessionalProjectsOverviewPage';
   data?: any;
 }
 
@@ -197,6 +199,22 @@ export default function Chat() {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <AcademicOverviewPage />
+                  </ChatBubble>
+                );
+              }
+
+              if (message.component === 'PersonalProjectsOverviewPage') {
+                return (
+                  <ChatBubble key={message.id} type={message.type}>
+                    <PersonalProjectsOverviewPage />
+                  </ChatBubble>
+                );
+              }
+
+              if (message.component === 'ProfessionalProjectsOverviewPage') {
+                return (
+                  <ChatBubble key={message.id} type={message.type}>
+                    <ProfessionalProjectsOverviewPage />
                   </ChatBubble>
                 );
               }

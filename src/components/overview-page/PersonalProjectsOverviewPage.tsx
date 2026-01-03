@@ -1,9 +1,9 @@
 import { OverviewPage } from "./OverviewPage";
-import { academic } from "@/data/mockData";
+import { projects } from "@/data/mockData";
 import { DetailCard } from "../detail-card/DetailCard";
 import { useState } from "react";
 
-export function AcademicOverviewPage() {
+export function PersonalProjectsOverviewPage() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [enlargedItem, setEnlargedItem] = useState<any>(null);
 
@@ -18,14 +18,14 @@ export function AcademicOverviewPage() {
   return (
     <div className="flex">
       <OverviewPage
-        title={"Academic Work Overview"}
+        title={"Personal Projects Overview"}
         items={
           activeFilter === "all"
-            ? academic
-            : academic.filter((item: any) => item.tags?.includes(activeFilter))
+            ? projects
+            : projects.filter((item: any) => item.tags?.includes(activeFilter))
         }
         onItemClick={handleItemClick}
-        filters={academic.reduce<string[]>((acc, item) => {
+        filters={projects.reduce<string[]>((acc, item) => {
           item.tags?.forEach((tag) => {
             if (!acc.includes(tag)) {
               acc.push(tag);
