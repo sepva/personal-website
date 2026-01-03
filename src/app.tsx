@@ -26,6 +26,23 @@ interface CustomMessage {
 export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Generate or retrieve a unique session ID for this client
+  // This ensures each client connects to their own Durable Object instance
+  const [sessionId] = useState(() => {
+    // Try to get existing session ID from sessionStorage (persists across page reloads)
+    const existingId = sessionStorage.getItem('chat-session-id');
+    if (existingId) {
+      return existingId;
+    }
+    // Generate new session ID using cryptographically secure random values
+    const randomBytes = new Uint8Array(8);
+    crypto.getRandomValues(randomBytes);
+    const randomPart = Array.from(randomBytes, b => b.toString(36)).join('').slice(0, 9);
+    const newId = `session-${Date.now()}-${randomPart}`;
+    sessionStorage.setItem('chat-session-id', newId);
+    return newId;
+  });
+
   // Initial custom messages
   const [customMessages, setCustomMessages] = useState<CustomMessage[]>([
       {
@@ -51,8 +68,11 @@ export default function Chat() {
     scrollToBottom();
   }, [customMessages]);
 
+  // Connect to the agent with a unique session name
+  // This ensures each client gets their own Durable Object instance
   const agent = useAgent({
-    agent: "chat"
+    agent: "chat",
+    name: sessionId
   });
 
   // Hook to manage chat with the agent

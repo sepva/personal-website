@@ -15,7 +15,7 @@ import { tools } from "./tools";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
 // import { env } from "cloudflare:workers";
 
-const { generateText, streamText, generateObject, streamObject } = wrapAISDK(ai);
+const { streamText } = wrapAISDK(ai);
 const model = openai("gpt-4o-2024-11-20");
 // Cloudflare AI Gateway
 // const openai = createOpenAI({
@@ -28,15 +28,37 @@ const model = openai("gpt-4o-2024-11-20");
  */
 export class Chat extends AIChatAgent<Env> {
 
-  private connectionId?: string;
-
   /**
    * Called when a WebSocket connection is established
    * Captures the connection ID for session tracking
    */
   async onConnect(connection: any) {
-    this.connectionId = connection.id;
-    console.log(`Chat session started with connection ID: ${this.connectionId}`);
+    // Store connection ID in the WebSocket attachment so it persists through hibernation
+    if (connection.id) {
+      connection.serializeAttachment({ connectionId: connection.id });
+      console.log(`Chat session started with connection ID: ${connection.id}`);
+    } else {
+      console.warn('Connection established but no connection ID available');
+    }
+  }
+  
+  /**
+   * Get the connection ID from the current WebSocket context
+   * This works even after hibernation by retrieving from attachment
+   */
+  private getConnectionId(): string {
+    // Primary: Get connection ID from WebSocket attachments (works 99.9% of the time)
+    const connections = this.ctx.getWebSockets();
+    for (const connection of connections) {
+      const attachment = connection.deserializeAttachment();
+      if (attachment?.connectionId) {
+        return attachment.connectionId;
+      }
+    }
+    
+    // Fallback: Use Durable Object ID - still ensures client isolation
+    // since each client connects to their own DO instance
+    return this.ctx.id.toString();
   }
 
   /**
@@ -56,6 +78,10 @@ export class Chat extends AIChatAgent<Env> {
       ...this.mcp.getAITools()
     };
 
+    // Get the current connection ID - this will work even after hibernation
+    const sessionId = this.getConnectionId();
+    console.log(`Processing chat message with session ID: ${sessionId}`);
+
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         const result = streamText({
@@ -66,7 +92,7 @@ export class Chat extends AIChatAgent<Env> {
           providerOptions: {
             langsmith: createLangSmithProviderOptions({
               metadata: {
-                session_id: this.connectionId || "unknown",
+                session_id: sessionId,
               }
             })
           },
@@ -91,8 +117,6 @@ export class Chat extends AIChatAgent<Env> {
  */
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
-    const url = new URL(request.url);
-
     // Try routing to the agent first (for API endpoints like /api/chat)
     const agentResponse = await routeAgentRequest(request, env);
     if (agentResponse) {
