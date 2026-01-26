@@ -1,52 +1,70 @@
 # 💼 Personal Website - Interactive CV
 
-An innovative personal portfolio and CV presented through an AI-powered chat interface. Instead of navigating through traditional web pages, visitors can have a natural conversation to learn about my projects, achievements, experience, and expertise.
+An innovative personal portfolio and CV presented through an AI-powered chat interface. Instead of navigating through traditional web pages, visitors can have a natural conversation to learn about projects, achievements, experience, and expertise.
 
-## 🎯 Project Goal
+## 🎯 Project Overview
 
-This website serves as my comprehensive online presence, showcasing:
-- **Personal Projects** - Side projects and passion work
+This website serves as a comprehensive online presence, showcasing:
+- **Personal Projects** - Side projects and personal development work
 - **Academic Achievements** - Education, research, and scholarly accomplishments
 - **Professional Experience** - Career history and professional projects
-- **Posts & Articles** - Thoughts, tutorials, and insights
+- **Interactive Content** - Dynamic UI components rendered within chat responses
 
 ## ✨ What Makes This Special
 
 Rather than a traditional static website where visitors navigate through multiple pages to find information, this project offers an **intelligent chat interface** that:
 
-- **Retrieves pre-made content** about my background and experience
-- **Answers questions directly** by summarizing and synthesizing information
-- **Provides a conversational experience** - visitors can ask "What experience do you have with React?" or "Tell me about your most interesting project"
-- **Saves time** - no need to dig through dozens of pages, just ask what you want to know
+- **Retrieves content dynamically** from a Cloudflare D1 SQLite database
+- **Answers questions directly** by synthesizing information with GPT-4o
+- **Renders interactive UI components** - displays rich overview pages directly in the chat
+- **Provides a conversational experience** - visitors can ask "What experience do you have with React?" or "Show me your personal projects"
+- **Saves time** - no need to dig through multiple pages, just ask what you want to know
 
-Think of it as having a conversation with an AI that knows everything about me, my work, and my accomplishments.
+The AI agent uses custom tools to fetch relevant content and can render React components inline, creating a unique blend of conversation and visual presentation.
 
 ## 🚀 Features
 
-- 💬 Interactive chat interface powered by AI
-- 🛠️ Custom tools for retrieving portfolio content
-- 🌓 Dark/Light theme support
-- ⚡️ Real-time streaming responses
-- 🔄 Conversation history
-- 🎨 Modern, responsive UI
+- 💬 **Interactive Chat Interface** - Powered by GPT-4o with streaming responses
+- 🗄️ **Cloudflare D1 Database** - SQLite database for content storage
+- 🎨 **Dynamic UI Components** - React components rendered inline within chat
+- 🛠️ **Custom AI Tools** - Specialized tools for retrieving portfolio content
+- 🌓 **Dark/Light Theme** - Theme support with system preference detection
+- ⚡️ **Real-time Streaming** - Streaming AI responses for better UX
+- 🔄 **Conversation History** - Maintains context across the chat session
+- 📊 **LangSmith Integration** - Observability and monitoring for AI interactions
+- 🧠 **Smart Caching** - In-memory caching for database queries
+- 🎯 **Strong Typing** - Full TypeScript support with Zod validation
 
 ## 🛠️ Technology Stack
 
-Built with:
-- **Cloudflare Workers** - Edge computing platform
-- **Cloudflare Agents** - AI agent framework
-- **AI SDK** - Language model integration
-- **React** - UI framework
+### Backend
+- **Cloudflare Workers** - Serverless edge computing platform
+- **Cloudflare D1** - SQLite database at the edge
+- **Cloudflare Agents SDK** - AI agent framework for building chat agents
+- **AI SDK (Vercel)** - Streaming and tool execution for AI models
+- **LangSmith** - AI observability and tracing
+
+### Frontend
+- **React 19** - UI framework with latest features
 - **TypeScript** - Type-safe development
-- **Vite** - Build tooling
+- **Tailwind CSS 4** - Utility-first styling
+- **Vite** - Fast build tooling
+- **Radix UI** - Accessible component primitives
+- **Phosphor Icons** - Icon library
+
+### Development
+- **Biome** - Fast linting and formatting
+- **Vitest** - Unit testing framework
+- **Wrangler** - Cloudflare development CLI
 
 ## 🚦 Getting Started
 
 ### Prerequisites
 
-- Node.js and npm
-- Cloudflare account
+- Node.js 18+ and npm
+- Cloudflare account (free tier works)
 - OpenAI API key
+- LangSmith API key (optional, for observability)
 
 ### Installation
 
@@ -65,11 +83,25 @@ npm install
 
 3. Set up your environment:
 
-Create a `.dev.vars` file:
+Create a `.dev.vars` file in the project root:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
+LANGSMITH_API_KEY=your_langsmith_api_key
 ```
+
+4. Set up the database:
+
+Create a D1 database using Wrangler:
+
+```bash
+# Create the database
+npx wrangler d1 create personal-website-db
+
+# Update wrangler.jsonc with your database ID
+```
+
+Then create your database schema and populate it with your content.
 
 ### Development
 
@@ -83,78 +115,136 @@ Visit `http://localhost:8787` to interact with the chat interface.
 
 ### Deployment
 
-Deploy to Cloudflare Workers:
+1. Set your secrets in Cloudflare:
+
+```bash
+npm run set_secrets
+```
+
+2. Deploy to Cloudflare Workers:
 
 ```bash
 npm run deploy
 ```
 
+Your site will be live on your Cloudflare Workers domain!
+
 ## 📁 Project Structure
 
 ```
 ├── src/
-│   ├── app.tsx           # Chat UI implementation
-│   ├── server.ts         # AI agent logic and configuration
-│   ├── tools.ts          # Custom tools for content retrieval
-│   ├── utils.ts          # Helper functions
-│   ├── styles.css        # UI styling
-│   ├── components/       # React components
-│   ├── data/            # Portfolio data and content
-│   ├── hooks/           # Custom React hooks
-│   ├── lib/             # Utility libraries
-│   ├── pages/           # Page components
-│   └── providers/       # Context providers
-├── public/              # Static assets
-└── tests/              # Test files
+│   ├── app.tsx              # Main chat UI React application
+│   ├── client.tsx           # Client-side entry point
+│   ├── server.ts            # AI agent logic and Cloudflare Worker handler
+│   ├── tools.ts             # Custom AI tools for content retrieval
+│   ├── shared.ts            # Shared types and interfaces
+│   ├── utils.ts             # Utility functions
+│   ├── styles.css           # Global styles
+│   ├── components/          # React components
+│   │   ├── chat-bubble/     # Chat message display
+│   │   ├── chat-input/      # User input component
+│   │   ├── overview-page/   # Content overview components
+│   │   ├── detail-card/     # Content detail views
+│   │   ├── content-tile/    # Content preview tiles
+│   │   └── ...              # Other UI components
+│   ├── hooks/               # Custom React hooks
+│   ├── instructions/        # AI system prompts
+│   │   └── system_prompt_agent.md
+│   ├── lib/                 # Utility libraries
+│   ├── pages/               # Page components
+│   └── providers/           # React context providers
+├── public/                  # Static assets
+├── tests/                   # Test files
+├── wrangler.jsonc          # Cloudflare Workers configuration
+├── vite.config.ts          # Vite build configuration
+└── package.json            # Project dependencies
 ```
 
 ## 🎨 Customization
 
-### Adding Content
+### Database Schema
 
-To add your own portfolio content:
+The project uses Cloudflare D1 (SQLite) with separate tables for different content types:
+- `academic` - Academic achievements and research
+- `work` - Professional projects and experience
+- `projects` - Personal projects
 
-1. **Update data files** in `src/data/` with your projects, experience, and achievements
-2. **Create custom tools** in `tools.ts` to retrieve and present your content
-3. **Customize the agent** in `server.ts` to understand your domain and respond appropriately
+Each table should have this schema:
 
-### Adding New Tools
+```sql
+CREATE TABLE {table_name} (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  type TEXT NOT NULL,
+  tags TEXT,  -- JSON array as string
+  date TEXT,
+  fullContent TEXT,
+  link_to_article TEXT
+);
+```
 
-Add new tools in `tools.ts` to provide the AI with access to your content:
+Add your content using SQL `INSERT` statements or the Wrangler CLI.
+
+### Adding Custom Tools
+
+Tools are defined in [tools.ts](src/tools.ts). Each tool can:
+1. Fetch data from the database using the injected `fetchContent` function
+2. Return structured data with a component name to render UI elements
+
+Example of adding a new tool:
 
 ```ts
-// Example: Tool to retrieve project information
-const getProjects = tool({
-  description: "Get information about personal projects",
-  parameters: z.object({
-    category: z.string().optional(),
-    limit: z.number().optional()
-  }),
-  execute: async ({ category, limit }) => {
-    // Return project data from your content store
-    return await fetchProjects({ category, limit });
+const getBlogPosts = tool({
+  description: `Shows blog posts and articles`,
+  inputSchema: z.object({ message: z.string() }),
+  execute: async ({ message }) => {
+    const data = await fetchContent('blog');
+    return {
+      type: 'react-component',
+      data,
+      componentName: 'BlogOverviewPage',
+      message: message
+    };
   }
 });
 ```
 
-### Modifying the UI
+### Customizing the AI Agent
 
-The chat interface is built with React and can be customized in `app.tsx`:
+The agent's behavior is controlled by:
+1. **System Prompt** - [system_prompt_agent.md](src/instructions/system_prompt_agent.md) defines the AI's personality and instructions
+2. **Available Tools** - Defined in [tools.ts](src/tools.ts)
+3. **Model Configuration** - In [server.ts](src/server.ts), currently using `gpt-4o-2024-11-20`
 
-- Modify theme colors in `styles.css`
-- Add custom components in `src/components/`
-- Customize message rendering and tool confirmation dialogs
-- Extend the UI with additional features like search, filters, or navigation
+### Customizing the UI
+
+The chat interface components can be customized:
+- **Theme** - Modify Tailwind configuration and CSS variables in [styles.css](src/styles.css)
+- **Components** - Update or create new components in `src/components/`
+- **Overview Pages** - Customize how content is displayed in overview components
+- **Chat Bubbles** - Modify message rendering in the chat-bubble component
 
 ## 💡 How It Works
 
-1. **Visitor asks a question** - "What experience do you have with TypeScript?"
-2. **AI agent processes** - Understands the intent and determines what information is needed
-3. **Tools retrieve content** - Fetches relevant projects, experience, or articles
-4. **AI synthesizes response** - Combines retrieved content with natural language understanding
-5. **Visitor gets answer** - Receives a direct, conversational answer
+1. **Visitor asks a question** - "What personal projects have you worked on?"
+2. **AI agent processes intent** - GPT-4o understands the request and determines which tool to use
+3. **Tool executes** - Fetches relevant content from the D1 database with caching
+4. **UI component renders** - Returns a React component specification to render inline
+5. **Chat displays result** - The overview page appears in the chat with all relevant content
+6. **Conversation continues** - The AI can answer follow-up questions with full context
 
-This creates a more engaging and efficient way for recruiters, colleagues, or collaborators to learn about your background.
+This architecture combines the flexibility of conversational AI with the rich interactivity of modern web applications, creating a unique and engaging way for visitors to explore portfolio content.
+
+## 🔧 Available Scripts
+
+- `npm start` - Start development server with Vite
+- `npm run deploy` - Build and deploy to Cloudflare Workers
+- `npm run set_secrets` - Upload environment variables to Cloudflare
+- `npm run types` - Generate TypeScript types from Wrangler
+- `npm test` - Run tests with Vitest
+- `npm run format` - Format code with Prettier
+- `npm run check` - Run type checking and linting
 
 ## 📝 License
 
