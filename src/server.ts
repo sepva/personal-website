@@ -50,8 +50,25 @@ const ContentItemSchema = z.object({
  * Chat Agent implementation that handles real-time AI chat interactions
  */
 export class Chat extends AIChatAgent<Env> {
-  // In-memory cache for database results during the session
-  private contentCache: Map<string, ContentItem[]> = new Map();
+  // In-memory cache for database results during the session with TTL
+  private contentCache: Map<string, { data: ContentItem[]; timestamp: number }> = new Map();
+  // Cache TTL in milliseconds (5 minutes)
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000;
+  // Max number of cache entries to prevent memory leaks
+  private readonly MAX_CACHE_ENTRIES = 100;
+  // Retry configuration for database operations
+  private readonly RETRY_CONFIG = {
+    maxAttempts: 3,
+    initialDelayMs: 100,
+    maxDelayMs: 2000,
+    backoffMultiplier: 2
+  };
+  // Connection pooling and health check configuration
+  private readonly CONNECTION_HEALTH_CHECK_INTERVAL_MS = 30 * 1000; // 30 seconds
+  private readonly CONNECTION_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+  private lastConnectionHealthCheck: number = 0;
+  private lastDBActivity: number = Date.now();
+  private isConnectionValid: boolean = true;
 
   /**
    * Called when a WebSocket connection is established
@@ -65,6 +82,125 @@ export class Chat extends AIChatAgent<Env> {
     } else {
       console.warn("Connection established but no connection ID available");
     }
+  }
+
+  /**
+   * Execute a function with exponential backoff retry logic
+   * Handles transient failures common with remote database connections
+   */
+  private async withRetry<T>(
+    fn: () => Promise<T>,
+    operationName: string
+  ): Promise<T> {
+    let lastError: Error | null = null;
+    let delay = this.RETRY_CONFIG.initialDelayMs;
+
+    for (let attempt = 1; attempt <= this.RETRY_CONFIG.maxAttempts; attempt++) {
+      try {
+        console.log(`Executing ${operationName} (attempt ${attempt}/${this.RETRY_CONFIG.maxAttempts})`);
+        return await fn();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.warn(
+          `${operationName} failed on attempt ${attempt}: ${lastError.message}`,
+          { delay, remainingAttempts: this.RETRY_CONFIG.maxAttempts - attempt }
+        );
+
+        if (attempt < this.RETRY_CONFIG.maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay = Math.min(delay * this.RETRY_CONFIG.backoffMultiplier, this.RETRY_CONFIG.maxDelayMs);
+        }
+      }
+    }
+
+    throw new Error(
+      `${operationName} failed after ${this.RETRY_CONFIG.maxAttempts} attempts: ${lastError?.message}`
+    );
+  }
+
+  /**
+   * Clear expired cache entries to prevent memory leaks
+   */
+  private clearExpiredCache(): void {
+    const now = Date.now();
+    let clearedCount = 0;
+
+    for (const [key, value] of this.contentCache.entries()) {
+      if (now - value.timestamp > this.CACHE_TTL_MS) {
+        this.contentCache.delete(key);
+        clearedCount++;
+      }
+    }
+
+    if (clearedCount > 0) {
+      console.log(`Cleared ${clearedCount} expired cache entries`);
+    }
+  }
+
+  /**
+   * Validate database connection by executing a simple health check query
+   * Returns true if connection is healthy, false otherwise
+   */
+  private async validateConnection(): Promise<boolean> {
+    try {
+      // Execute a minimal query to test connection validity
+      const { results } = await this.env.DB.prepare(
+        "SELECT 1 as health_check"
+      ).all();
+      
+      this.isConnectionValid = true;
+      this.lastConnectionHealthCheck = Date.now();
+      console.log("Database connection validation successful");
+      return true;
+    } catch (error) {
+      this.isConnectionValid = false;
+      console.warn(
+        "Database connection validation failed:",
+        error instanceof Error ? error.message : String(error)
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Perform connection health check if needed (based on interval or idle timeout)
+   * Proactively validates connection before executing queries
+   */
+  private async ensureConnectionHealth(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastCheck = now - this.lastConnectionHealthCheck;
+    const timeSinceLastActivity = now - this.lastDBActivity;
+
+    // Check if connection has been idle too long or if health check interval has passed
+    if (
+      timeSinceLastCheck > this.CONNECTION_HEALTH_CHECK_INTERVAL_MS ||
+      timeSinceLastActivity > this.CONNECTION_IDLE_TIMEOUT_MS ||
+      !this.isConnectionValid
+    ) {
+      console.log("Connection health check needed - validating...");
+      await this.validateConnection();
+    }
+  }
+
+  /**
+   * Execute database query with connection validation and retry logic
+   * Ensures connection is healthy before executing, with automatic reconnection on failure
+   */
+  private async executeDBQuery<T>(
+    fn: () => Promise<T>,
+    operationName: string
+  ): Promise<T> {
+    // Validate connection before attempting query
+    await this.ensureConnectionHealth();
+
+    // Execute with retry logic
+    const result = await this.withRetry(async () => {
+      // Update activity timestamp
+      this.lastDBActivity = Date.now();
+      return fn();
+    }, operationName);
+
+    return result;
   }
 
   /**
@@ -87,63 +223,69 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   /**
-   * Query the vector database for relevant documents
+   * Query the vector database for relevant documents with retry logic
    */
   async queryVectorDatabase(
     query: string,
     topK: number = 3
   ): Promise<ContentItem[]> {
-    // Generate embedding for the query
-    const queryEmbedding = await this.env.AI.run("@cf/baai/bge-base-en-v1.5", {
-      text: query
-    });
+    return this.executeDBQuery(async () => {
+      // Generate embedding for the query
+      const queryEmbedding = await this.env.AI.run("@cf/baai/bge-base-en-v1.5", {
+        text: query
+      });
 
-    // Extract vector from embedding response
-    let queryVector: number[];
-    if (Array.isArray(queryEmbedding)) {
-      queryVector = queryEmbedding;
-    } else if ((queryEmbedding as any).data) {
-      const data = (queryEmbedding as any).data;
-      // If data is a nested array, get the first element; otherwise use it directly
-      queryVector = Array.isArray(data[0]) ? data[0] : data;
-    } else {
-      queryVector = queryEmbedding as any;
-    }
-    
-    if (!queryVector) {
-      throw new Error("Failed to generate query vector embedding");
-    }
-
-    // Query the vector index with metadata
-    const searchResults = await this.env.VECTOR_INDEX.query(queryVector, {
-      topK: topK,
-      returnMetadata: "all"
-    });
-
-    const contentItems: ContentItem[] = [];
-    for (const result of searchResults.matches) {
-      const dataType = result.metadata?.data_type as string;
-      
-      if (!dataType) continue;
-
-      try {
-        const { results } = await this.env.DB.prepare(
-          `SELECT * FROM ${dataType} WHERE id = ?`
-        )
-          .bind(result.id)
-          .all();
-
-        contentItems.push(...this.parseDBResults(results));
-      } catch (error) {
-        // Silently skip failed records
-        continue;
+      // Extract vector from embedding response
+      let queryVector: number[];
+      if (Array.isArray(queryEmbedding)) {
+        queryVector = queryEmbedding;
+      } else if ((queryEmbedding as any).data) {
+        const data = (queryEmbedding as any).data;
+        // If data is a nested array, get the first element; otherwise use it directly
+        queryVector = Array.isArray(data[0]) ? data[0] : data;
+      } else {
+        queryVector = queryEmbedding as any;
       }
-    }
-    return contentItems;
+      
+      if (!queryVector) {
+        throw new Error("Failed to generate query vector embedding");
+      }
+
+      // Query the vector index with metadata
+      const searchResults = await this.env.VECTOR_INDEX.query(queryVector, {
+        topK: topK,
+        returnMetadata: "all"
+      });
+
+      const contentItems: ContentItem[] = [];
+      for (const result of searchResults.matches) {
+        const dataType = result.metadata?.data_type as string;
+        
+        if (!dataType) continue;
+
+        try {
+          const { results } = await this.env.DB.prepare(
+            `SELECT * FROM ${dataType} WHERE id = ?`
+          )
+            .bind(result.id)
+            .all();
+
+          contentItems.push(...this.parseDBResults(results));
+        } catch (error) {
+          console.warn(
+            `Failed to fetch record ${result.id} from ${dataType}:`,
+            error instanceof Error ? error.message : String(error)
+          );
+          // Skip failed records but continue processing
+          continue;
+        }
+      }
+      return contentItems;
+    }, `queryVectorDatabase(${query.slice(0, 50)})`);
   }
 
   /**
-   * Fetch content pages from SQLite database with caching
+   * Fetch content pages from SQLite database with caching and retry logic
    */
   async fetchContentPageFromDB(
     dataType: string,
@@ -151,37 +293,75 @@ export class Chat extends AIChatAgent<Env> {
   ): Promise<ContentItem[]> {
     const cacheKey = `${dataType}${id ? ":" + id : ""}`;
 
-    // Check cache first
+    // Clear expired cache periodically to prevent memory leaks
+    this.clearExpiredCache();
+
+    // Check cache first - verify it hasn't expired
     if (this.contentCache.has(cacheKey)) {
-      console.log(`Cache hit for ${cacheKey}`);
-      return this.contentCache.get(cacheKey)!;
+      const cached = this.contentCache.get(cacheKey)!;
+      const age = Date.now() - cached.timestamp;
+      if (age < this.CACHE_TTL_MS) {
+        console.log(`Cache hit for ${cacheKey} (age: ${age}ms)`);
+        return cached.data;
+      } else {
+        console.log(`Cache expired for ${cacheKey} (age: ${age}ms), removing`);
+        this.contentCache.delete(cacheKey);
+      }
     }
 
-    // Cache miss - fetch from database
+    // Cache miss - fetch from database with connection validation and retry logic
     console.log(`Cache miss for ${cacheKey}, fetching from DB`);
 
     try {
-      let query = `SELECT * FROM ${dataType}`;
-      const params: string[] = [];
+      const result = await this.executeDBQuery(async () => {
+        let query = `SELECT * FROM ${dataType}`;
+        const params: string[] = [];
 
-      if (id) {
-        query += " WHERE id = ?";
-        params.push(id);
-      }
+        if (id) {
+          query += " WHERE id = ?";
+          params.push(id);
+        }
 
-      const stmt = this.env.DB.prepare(query);
-      const { results } =
-        params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
+        const stmt = this.env.DB.prepare(query);
+        const { results } =
+          params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
+
+        return results;
+      }, `fetchContentPageFromDB(${dataType}${id ? ":" + id : ""})`);
 
       // Parse and validate JSON fields using Zod
-      const parsedResults = this.parseDBResults(results);
+      const parsedResults = this.parseDBResults(result);
 
-      // Store in cache
-      this.contentCache.set(cacheKey, parsedResults);
+      // Enforce max cache size by removing oldest entries if necessary
+      if (this.contentCache.size >= this.MAX_CACHE_ENTRIES) {
+        let oldestKey: string | null = null;
+        let oldestTimestamp = Infinity;
+        
+        for (const [key, value] of this.contentCache.entries()) {
+          if (value.timestamp < oldestTimestamp) {
+            oldestTimestamp = value.timestamp;
+            oldestKey = key;
+          }
+        }
+        
+        if (oldestKey) {
+          this.contentCache.delete(oldestKey);
+          console.log(`Evicted oldest cache entry (${oldestKey}) to respect max cache size`);
+        }
+      }
+
+      // Store in cache with timestamp
+      this.contentCache.set(cacheKey, {
+        data: parsedResults,
+        timestamp: Date.now()
+      });
 
       return parsedResults;
     } catch (error) {
-      console.error(`Failed to fetch ${dataType} from database:`, error);
+      console.error(
+        `Failed to fetch ${dataType} from database after retries:`,
+        error instanceof Error ? error.message : String(error)
+      );
       return [];
     }
   }
