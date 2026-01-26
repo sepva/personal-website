@@ -10,7 +10,10 @@ import {
 } from "ai";
 import * as ai from "ai";
 import { openai } from "@ai-sdk/openai";
-import { wrapAISDK, createLangSmithProviderOptions } from "langsmith/experimental/vercel"
+import {
+  wrapAISDK,
+  createLangSmithProviderOptions
+} from "langsmith/experimental/vercel";
 import { z } from "zod";
 import { tools } from "./tools";
 import type { ContentItem } from "./shared";
@@ -26,17 +29,21 @@ const ContentItemSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
-  type: z.enum(['project', 'blog', 'academic', 'work']),
-  tags: z.string().transform(val => {
-    try {
-      return typeof val === 'string' ? JSON.parse(val) : val;
-    } catch {
-      return [];
-    }
-  }).pipe(z.array(z.string())).optional(),
-  date: z.string().optional(),
-  fullContent: z.string().optional(),
-  link_to_article: z.string().optional(),
+  type: z.enum(["project", "blog", "academic", "work"]),
+  tags: z
+    .string()
+    .transform((val) => {
+      try {
+        return typeof val === "string" ? JSON.parse(val) : val;
+      } catch {
+        return [];
+      }
+    })
+    .pipe(z.array(z.string()))
+    .optional(),
+  date: z.string().nullable().optional().transform(val => val ?? undefined),
+  fullContent: z.string().nullable().optional().transform(val => val ?? undefined),
+  link_to_article: z.string().nullable().optional().transform(val => val ?? undefined)
 });
 
 /**
@@ -45,61 +52,6 @@ const ContentItemSchema = z.object({
 export class Chat extends AIChatAgent<Env> {
   // In-memory cache for database results during the session
   private contentCache: Map<string, ContentItem[]> = new Map();
-
-  /**
-   * Fetch content pages from SQLite database with caching
-   */
-  async fetchContentPageFromDB(dataType: string, id?: string): Promise<ContentItem[]> {
-    const cacheKey = `${dataType}${id ? ':' + id : ''}`;
-    
-    // Check cache first
-    if (this.contentCache.has(cacheKey)) {
-      console.log(`Cache hit for ${cacheKey}`);
-      return this.contentCache.get(cacheKey)!;
-    }
-    
-    // Cache miss - fetch from database
-    console.log(`Cache miss for ${cacheKey}, fetching from DB`);
-    
-    try {
-      let query = `SELECT * FROM ${dataType}`;
-      const params: string[] = [];
-      
-      if (id) {
-        query += ' WHERE id = ?';
-        params.push(id);
-      }
-      
-      const stmt = this.env.DB.prepare(query);
-      const { results } = params.length > 0 
-        ? await stmt.bind(...params).all()
-        : await stmt.all();
-      
-      // Parse and validate JSON fields using Zod
-      const parsedResults = results?.map((row: any): ContentItem => {
-        try {
-          return ContentItemSchema.parse(row);
-        } catch (error) {
-          console.error(`Failed to parse content item ${row.id}:`, error);
-          // Return a minimal valid item as fallback
-          return {
-            id: row.id || 'unknown',
-            title: row.title || 'Untitled',
-            description: row.description || '',
-            type: row.type || 'blog',
-          };
-        }
-      }) || [];
-      
-      // Store in cache
-      this.contentCache.set(cacheKey, parsedResults);
-      
-      return parsedResults;
-    } catch (error) {
-      console.error(`Failed to fetch ${dataType} from database:`, error);
-      return [];
-    }
-  }
 
   /**
    * Called when a WebSocket connection is established
@@ -111,10 +63,10 @@ export class Chat extends AIChatAgent<Env> {
       connection.serializeAttachment({ connectionId: connection.id });
       console.log(`Chat session started with connection ID: ${connection.id}`);
     } else {
-      console.warn('Connection established but no connection ID available');
+      console.warn("Connection established but no connection ID available");
     }
   }
-  
+
   /**
    * Get the connection ID from the current WebSocket context
    * This works even after hibernation by retrieving from attachment
@@ -128,10 +80,127 @@ export class Chat extends AIChatAgent<Env> {
         return attachment.connectionId;
       }
     }
-    
+
     // Fallback: Use Durable Object ID - still ensures client isolation
     // since each client connects to their own DO instance
     return this.ctx.id.toString();
+  }
+
+  /**
+   * Query the vector database for relevant documents
+   */
+  async queryVectorDatabase(
+    query: string,
+    topK: number = 3
+  ): Promise<ContentItem[]> {
+    // Generate embedding for the query
+    const queryEmbedding = await this.env.AI.run("@cf/baai/bge-base-en-v1.5", {
+      text: query
+    });
+
+    // Extract vector from embedding response
+    let queryVector: number[];
+    if (Array.isArray(queryEmbedding)) {
+      queryVector = queryEmbedding;
+    } else if ((queryEmbedding as any).data) {
+      const data = (queryEmbedding as any).data;
+      // If data is a nested array, get the first element; otherwise use it directly
+      queryVector = Array.isArray(data[0]) ? data[0] : data;
+    } else {
+      queryVector = queryEmbedding as any;
+    }
+    
+    if (!queryVector) {
+      throw new Error("Failed to generate query vector embedding");
+    }
+
+    // Query the vector index with metadata
+    const searchResults = await this.env.VECTOR_INDEX.query(queryVector, {
+      topK: topK,
+      returnMetadata: "all"
+    });
+
+    const contentItems: ContentItem[] = [];
+    for (const result of searchResults.matches) {
+      const dataType = result.metadata?.data_type as string;
+      
+      if (!dataType) continue;
+
+      try {
+        const { results } = await this.env.DB.prepare(
+          `SELECT * FROM ${dataType} WHERE id = ?`
+        )
+          .bind(result.id)
+          .all();
+
+        contentItems.push(...this.parseDBResults(results));
+      } catch (error) {
+        // Silently skip failed records
+        continue;
+      }
+    }
+    return contentItems;
+  }
+
+  /**
+   * Fetch content pages from SQLite database with caching
+   */
+  async fetchContentPageFromDB(
+    dataType: string,
+    id?: string
+  ): Promise<ContentItem[]> {
+    const cacheKey = `${dataType}${id ? ":" + id : ""}`;
+
+    // Check cache first
+    if (this.contentCache.has(cacheKey)) {
+      console.log(`Cache hit for ${cacheKey}`);
+      return this.contentCache.get(cacheKey)!;
+    }
+
+    // Cache miss - fetch from database
+    console.log(`Cache miss for ${cacheKey}, fetching from DB`);
+
+    try {
+      let query = `SELECT * FROM ${dataType}`;
+      const params: string[] = [];
+
+      if (id) {
+        query += " WHERE id = ?";
+        params.push(id);
+      }
+
+      const stmt = this.env.DB.prepare(query);
+      const { results } =
+        params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
+
+      // Parse and validate JSON fields using Zod
+      const parsedResults = this.parseDBResults(results);
+
+      // Store in cache
+      this.contentCache.set(cacheKey, parsedResults);
+
+      return parsedResults;
+    } catch (error) {
+      console.error(`Failed to fetch ${dataType} from database:`, error);
+      return [];
+    }
+  }
+
+  parseDBResults(results: any[]): ContentItem[] {
+    return results.map((row: any) => {
+      try {
+        return ContentItemSchema.parse(row);
+      } catch (error) {
+        console.error(`Failed to parse content item ${row.id}:`, error);
+        // Return a minimal valid item as fallback
+        return {
+          id: row.id || "unknown",
+          title: row.title || "Untitled",
+          description: row.description || "",
+          type: row.type || "blog"
+        };
+      }
+    }) || [];
   }
 
   /**
@@ -141,19 +210,15 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
-    // const mcpConnection = await this.mcp.connect(
-    //   "https://path-to-mcp-server/sse"
-    // );
-
-    // Collect all tools, including MCP tools
     const allTools = {
-      ...tools(this.fetchContentPageFromDB.bind(this)),
+      ...tools(
+        this.fetchContentPageFromDB.bind(this),
+        this.queryVectorDatabase.bind(this)
+      ),
       ...this.mcp.getAITools()
     };
 
-    // Get the current connection ID - this will work even after hibernation
     const sessionId = this.getConnectionId();
-    console.log(`Processing chat message with session ID: ${sessionId}`);
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -165,7 +230,7 @@ export class Chat extends AIChatAgent<Env> {
           providerOptions: {
             langsmith: createLangSmithProviderOptions({
               metadata: {
-                session_id: sessionId,
+                session_id: sessionId
               }
             })
           },

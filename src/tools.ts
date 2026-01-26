@@ -11,10 +11,15 @@ import { z } from "zod/v3";
 type FetchContent = (dataType: string, id?: string) => Promise<any[]>;
 
 /**
- * Export tools as a function that accepts a fetch content function
+ * Type definition for the vector search function
+ */
+type VectorSearch = (query: string, topK?: number) => Promise<any[]>;
+
+/**
+ * Export tools as a function that accepts a fetch content function and vector search function
  * This allows dependency injection for database access with caching
  */
-export function tools(fetchContent: FetchContent) {
+export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
   /**
    * Academic information tool: when called, provides the relevant academic details
    */
@@ -73,12 +78,33 @@ export function tools(fetchContent: FetchContent) {
   });
 
   /**
+   * Vector search tool: when called, performs a vector search on the documents in the vector database containing information about Seppe Vanswegenoven
+   */
+  const vectorSearchTool = tool({
+    description: `Use this tool to perform a vector search on the documents in the vector database containing information about Seppe Vanswegenoven.
+    The input is a text query and the number of relevant documents to return. The output is a list of documents with their content and metadata.`,
+    inputSchema: z.object({
+      query: z.string().min(1, "Query must be at least 1 character long"),
+      topK: z.number().min(1).max(10).default(3)
+    }),
+    execute: async ({ query, topK }) => {
+      const results = await vectorSearch(query, topK);
+      return {
+        type: 'vector-search-results',
+        data: results,
+        message: `Found ${results.length} relevant documents for query: "${query}"`
+      };
+    }
+  });
+
+  /**
    * Return all available tools
    * These will be provided to the AI model to describe available capabilities
    */
   return {
     getAcademicOverviewPage,
     getProfessionalProjects,
-    getPersonalProjects
+    getPersonalProjects,
+    vectorSearchTool
   } satisfies ToolSet;
 }

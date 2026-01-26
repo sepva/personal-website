@@ -33,6 +33,13 @@
 			"remote": true
 		}
 	],
+	"vectorize": [
+		{
+			"binding": "VECTOR_INDEX",
+			"index_name": "personal-website-index",
+			"remote": true
+		}
+	],
 	"migrations": [
 		{
 			"tag": "v1",
