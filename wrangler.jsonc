@@ -25,6 +25,14 @@
 			}
 		]
 	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "personal-website-db",
+			"database_id": "429101e1-40b1-43dc-adf4-c97feb30f26d",
+			"remote": true
+		}
+	],
 	"migrations": [
 		{
 			"tag": "v1",

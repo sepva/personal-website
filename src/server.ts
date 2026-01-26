@@ -13,20 +13,71 @@ import { openai } from "@ai-sdk/openai";
 import { wrapAISDK, createLangSmithProviderOptions } from "langsmith/experimental/vercel"
 import { tools } from "./tools";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
-// import { env } from "cloudflare:workers";
 
 const { streamText } = wrapAISDK(ai);
 const model = openai("gpt-4o-2024-11-20");
-// Cloudflare AI Gateway
-// const openai = createOpenAI({
-//   apiKey: env.OPENAI_API_KEY,
-//   baseURL: env.GATEWAY_BASE_URL,
-// });
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
 export class Chat extends AIChatAgent<Env> {
+  // In-memory cache for database results during the session
+  private contentCache: Map<string, any[]> = new Map();
+
+  /**
+   * Fetch content pages from SQLite database with caching
+   */
+  async fetchContentPageFromDB(dataType: string, id?: string): Promise<any[]> {
+    const cacheKey = `${dataType}${id ? ':' + id : ''}`;
+    
+    // Check cache first
+    if (this.contentCache.has(cacheKey)) {
+      console.log(`Cache hit for ${cacheKey}`);
+      return this.contentCache.get(cacheKey)!;
+    }
+    
+    // Cache miss - fetch from database
+    console.log(`Cache miss for ${cacheKey}, fetching from DB`);
+    
+    try {
+      let query = `SELECT * FROM ${dataType}`;
+      const params: string[] = [];
+      
+      if (id) {
+        query += ' WHERE id = ?';
+        params.push(id);
+      }
+      
+      const stmt = this.env.DB.prepare(query);
+      const { results } = params.length > 0 
+        ? await stmt.bind(...params).all()
+        : await stmt.all();
+      
+      // Parse JSON fields back to objects to match mockData format
+      const parsedResults = results?.map((row: any) => {
+        const parsed = { ...row };
+        // Parse tags array and other JSON fields
+        for (const [key, value] of Object.entries(parsed)) {
+          if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
+            try {
+              parsed[key] = JSON.parse(value);
+            } catch {
+              // Keep as string if parsing fails
+            }
+          }
+        }
+        return parsed;
+      }) || [];
+      
+      // Store in cache
+      this.contentCache.set(cacheKey, parsedResults);
+      
+      return parsedResults;
+    } catch (error) {
+      console.error(`Failed to fetch ${dataType} from database:`, error);
+      return [];
+    }
+  }
 
   /**
    * Called when a WebSocket connection is established
@@ -74,7 +125,7 @@ export class Chat extends AIChatAgent<Env> {
 
     // Collect all tools, including MCP tools
     const allTools = {
-      ...tools,
+      ...tools(this.fetchContentPageFromDB.bind(this)),
       ...this.mcp.getAITools()
     };
 
