@@ -1,14 +1,6 @@
 import { ContentTile } from '../content-tile/ContentTile';
 import { FilterBar } from '../filter-bar/FilterBar';
-
-interface ContentItem {
-  id: string;
-  title: string;
-  description: string;
-  tags?: string[];
-  type: 'project' | 'blog' | 'academic' | 'work';
-  date?: string;
-}
+import type { ContentItem } from '@/shared';
 
 interface OverviewPageProps {
   title: string;

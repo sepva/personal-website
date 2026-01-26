@@ -1,9 +1,13 @@
 import { OverviewPage } from "./OverviewPage";
-import { academic } from "@/data/mockData";
 import { DetailCard } from "../detail-card/DetailCard";
 import { useState } from "react";
+import type { ContentItem } from "@/shared";
 
-export function AcademicOverviewPage() {
+interface AcademicOverviewPageProps {
+  data: ContentItem[];
+}
+
+export function AcademicOverviewPage({ data }: AcademicOverviewPageProps) {
   const [activeFilter, setActiveFilter] = useState("all");
   const [enlargedItem, setEnlargedItem] = useState<any>(null);
 
@@ -21,11 +25,11 @@ export function AcademicOverviewPage() {
         title={"Academic Work Overview"}
         items={
           activeFilter === "all"
-            ? academic
-            : academic.filter((item: any) => item.tags?.includes(activeFilter))
+            ? data
+            : data.filter((item) => item.tags?.includes(activeFilter))
         }
         onItemClick={handleItemClick}
-        filters={academic.reduce<string[]>((acc, item) => {
+        filters={data.reduce<string[]>((acc, item) => {
           item.tags?.forEach((tag) => {
             if (!acc.includes(tag)) {
               acc.push(tag);

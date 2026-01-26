@@ -11,23 +11,45 @@ import {
 import * as ai from "ai";
 import { openai } from "@ai-sdk/openai";
 import { wrapAISDK, createLangSmithProviderOptions } from "langsmith/experimental/vercel"
+import { z } from "zod";
 import { tools } from "./tools";
+import type { ContentItem } from "./shared";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
 
 const { streamText } = wrapAISDK(ai);
 const model = openai("gpt-4o-2024-11-20");
 
 /**
+ * Zod schema for validating and parsing ContentItem from database rows
+ */
+const ContentItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  type: z.enum(['project', 'blog', 'academic', 'work']),
+  tags: z.string().transform(val => {
+    try {
+      return typeof val === 'string' ? JSON.parse(val) : val;
+    } catch {
+      return [];
+    }
+  }).pipe(z.array(z.string())).optional(),
+  date: z.string().optional(),
+  fullContent: z.string().optional(),
+  link_to_article: z.string().optional(),
+});
+
+/**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
 export class Chat extends AIChatAgent<Env> {
   // In-memory cache for database results during the session
-  private contentCache: Map<string, any[]> = new Map();
+  private contentCache: Map<string, ContentItem[]> = new Map();
 
   /**
    * Fetch content pages from SQLite database with caching
    */
-  async fetchContentPageFromDB(dataType: string, id?: string): Promise<any[]> {
+  async fetchContentPageFromDB(dataType: string, id?: string): Promise<ContentItem[]> {
     const cacheKey = `${dataType}${id ? ':' + id : ''}`;
     
     // Check cache first
@@ -53,20 +75,20 @@ export class Chat extends AIChatAgent<Env> {
         ? await stmt.bind(...params).all()
         : await stmt.all();
       
-      // Parse JSON fields back to objects to match mockData format
-      const parsedResults = results?.map((row: any) => {
-        const parsed = { ...row };
-        // Parse tags array and other JSON fields
-        for (const [key, value] of Object.entries(parsed)) {
-          if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
-            try {
-              parsed[key] = JSON.parse(value);
-            } catch {
-              // Keep as string if parsing fails
-            }
-          }
+      // Parse and validate JSON fields using Zod
+      const parsedResults = results?.map((row: any): ContentItem => {
+        try {
+          return ContentItemSchema.parse(row);
+        } catch (error) {
+          console.error(`Failed to parse content item ${row.id}:`, error);
+          // Return a minimal valid item as fallback
+          return {
+            id: row.id || 'unknown',
+            title: row.title || 'Untitled',
+            description: row.description || '',
+            type: row.type || 'blog',
+          };
         }
-        return parsed;
       }) || [];
       
       // Store in cache

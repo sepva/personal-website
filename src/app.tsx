@@ -198,7 +198,7 @@ export default function Chat() {
               if (message.component === 'AcademicOverviewPage') {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
-                    <AcademicOverviewPage />
+                    <AcademicOverviewPage data={message.data || []} />
                   </ChatBubble>
                 );
               }
@@ -206,7 +206,7 @@ export default function Chat() {
               if (message.component === 'PersonalProjectsOverviewPage') {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
-                    <PersonalProjectsOverviewPage />
+                    <PersonalProjectsOverviewPage data={message.data || []} />
                   </ChatBubble>
                 );
               }
@@ -214,7 +214,7 @@ export default function Chat() {
               if (message.component === 'ProfessionalProjectsOverviewPage') {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
-                    <ProfessionalProjectsOverviewPage />
+                    <ProfessionalProjectsOverviewPage data={message.data || []} />
                   </ChatBubble>
                 );
               }

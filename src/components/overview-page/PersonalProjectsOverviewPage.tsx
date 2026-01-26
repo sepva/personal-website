@@ -1,9 +1,13 @@
 import { OverviewPage } from "./OverviewPage";
-import { projects } from "@/data/mockData";
 import { DetailCard } from "../detail-card/DetailCard";
 import { useState } from "react";
+import type { ContentItem } from "@/shared";
 
-export function PersonalProjectsOverviewPage() {
+interface PersonalProjectsOverviewPageProps {
+  data: ContentItem[];
+}
+
+export function PersonalProjectsOverviewPage({ data }: PersonalProjectsOverviewPageProps) {
   const [activeFilter, setActiveFilter] = useState("all");
   const [enlargedItem, setEnlargedItem] = useState<any>(null);
 
@@ -21,11 +25,11 @@ export function PersonalProjectsOverviewPage() {
         title={"Personal Projects Overview"}
         items={
           activeFilter === "all"
-            ? projects
-            : projects.filter((item: any) => item.tags?.includes(activeFilter))
+            ? data
+            : data.filter((item) => item.tags?.includes(activeFilter))
         }
         onItemClick={handleItemClick}
-        filters={projects.reduce<string[]>((acc, item) => {
+        filters={data.reduce<string[]>((acc, item) => {
           item.tags?.forEach((tag) => {
             if (!acc.includes(tag)) {
               acc.push(tag);
