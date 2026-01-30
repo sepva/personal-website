@@ -1,14 +1,15 @@
-# 💼 Personal Website - Interactive CV
+# 💼 Personal Website - Interactive AI Chat Portfolio
 
-An innovative personal portfolio and CV presented through an AI-powered chat interface. Instead of navigating through traditional web pages, visitors can have a natural conversation to learn about projects, achievements, experience, and expertise.
+An innovative personal portfolio and CV presented through an **AI-powered chat interface**. Instead of navigating through traditional web pages, visitors can have a natural conversation with an AI agent to learn about projects, achievements, experience, and expertise.
 
 ## 🎯 Project Overview
 
 This website serves as a comprehensive online presence, showcasing:
 - **Personal Projects** - Side projects and personal development work
-- **Academic Achievements** - Education, research, and scholarly accomplishments
+- **Academic Achievements** - Education, research, and scholarly accomplishments  
 - **Professional Experience** - Career history and professional projects
-- **Interactive Content** - Dynamic UI components rendered within chat responses
+- **Interactive Content** - Rich UI components and overview pages rendered dynamically within chat responses
+- **Conversation-Driven Discovery** - Ask the AI agent anything about your experience, skills, and work
 
 ## ✨ What Makes This Special
 
@@ -24,38 +25,50 @@ The AI agent uses custom tools to fetch relevant content and can render React co
 
 ## 🚀 Features
 
-- 💬 **Interactive Chat Interface** - Powered by GPT-4o with streaming responses
-- 🗄️ **Cloudflare D1 Database** - SQLite database for content storage
-- 🎨 **Dynamic UI Components** - React components rendered inline within chat
-- 🛠️ **Custom AI Tools** - Specialized tools for retrieving portfolio content
+- 💬 **AI-Powered Chat Agent** - Natural language conversation with GPT-4o
+- ⚡️ **Real-time Streaming** - Streaming AI responses for responsive UX
+- 🗄️ **Cloudflare D1 SQLite** - Persistent content storage at the edge
+- 🔄 **Persistent Chat Sessions** - Durable Objects maintain chat history across reconnections
+- 🎨 **Dynamic Component Rendering** - React components rendered inline within chat messages
+- 🛠️ **Custom AI Tools** - Agent has tools to fetch projects, experience, and academic content
+- 🌐 **Vector Search Ready** - Cloudflare Vectorize integration for semantic search
+- 🧠 **Smart Caching** - In-memory TTL-based cache for efficient database queries
+- 🔐 **Session-Scoped** - Each visitor gets their own isolated chat session
+- 📊 **Full Observability** - LangSmith integration for AI interaction tracing
+- 🎯 **Type-Safe** - Complete TypeScript support with Zod validation
 - 🌓 **Dark/Light Theme** - Theme support with system preference detection
-- ⚡️ **Real-time Streaming** - Streaming AI responses for better UX
-- 🔄 **Conversation History** - Maintains context across the chat session
-- 📊 **LangSmith Integration** - Observability and monitoring for AI interactions
-- 🧠 **Smart Caching** - In-memory caching for database queries
-- 🎯 **Strong Typing** - Full TypeScript support with Zod validation
+- 📱 **Responsive Design** - Mobile-friendly UI with sidebar and mobile menu
+- ♿️ **Accessible** - Built with Radix UI primitives for accessibility
 
 ## 🛠️ Technology Stack
 
 ### Backend
 - **Cloudflare Workers** - Serverless edge computing platform
-- **Cloudflare D1** - SQLite database at the edge
-- **Cloudflare Agents SDK** - AI agent framework for building chat agents
-- **AI SDK (Vercel)** - Streaming and tool execution for AI models
-- **LangSmith** - AI observability and tracing
+- **Cloudflare D1** - SQLite database at the edge for content storage
+- **Cloudflare Durable Objects** - Stateful serverless for persistent chat sessions
+- **Cloudflare Vectorize** - Vector database for semantic search
+- **Cloudflare AI** - Edge AI capabilities
+- **Agents SDK** - AI agent framework for building conversational agents
+- **AI SDK (Vercel)** - Streaming text and tool execution for AI models
+- **LangSmith** - AI observability, tracing, and debugging
+- **OpenAI GPT-4o** - Primary language model for chat
 
 ### Frontend
 - **React 19** - UI framework with latest features
-- **TypeScript** - Type-safe development
+- **TypeScript** - Full type-safe development
 - **Tailwind CSS 4** - Utility-first styling
-- **Vite** - Fast build tooling
+- **Vite 7** - Lightning-fast build tooling
 - **Radix UI** - Accessible component primitives
-- **Phosphor Icons** - Icon library
+- **Phosphor Icons** - Beautiful icon library
+- **AI SDK React** - React hooks for streaming AI responses
+- **Sonner** - Toast notifications
 
-### Development
-- **Biome** - Fast linting and formatting
+### Development & Quality
+- **Biome 2** - Fast linting and formatting
 - **Vitest** - Unit testing framework
-- **Wrangler** - Cloudflare development CLI
+- **Wrangler 4** - Cloudflare development CLI
+- **Prettier** - Code formatter
+- **TypeScript** - Static type checking
 
 ## 🚦 Getting Started
 
@@ -111,116 +124,153 @@ Run the development server:
 npm start
 ```
 
-Visit `http://localhost:8787` to interact with the chat interface.
+The dev server will start at `http://localhost:5173` (Vite) and the Worker backend at `http://localhost:8787`. Your chat interface will be available at `http://localhost:5173`.
+
+The Wrangler CLI automatically handles proxying API requests to the Worker during development.
 
 ### Deployment
 
-1. Set your secrets in Cloudflare:
+1. Ensure your Cloudflare configuration in `wrangler.jsonc` is correct (D1 database ID, Durable Object bindings, etc.)
+
+2. Set your secrets in Cloudflare:
 
 ```bash
 npm run set_secrets
 ```
 
-2. Deploy to Cloudflare Workers:
+This uses the `.dev.vars` file to populate secrets on the remote Cloudflare account.
+
+3. Build and deploy to Cloudflare Workers:
 
 ```bash
 npm run deploy
 ```
 
-Your site will be live on your Cloudflare Workers domain!
-
-## 📁 Project Structure
-
-```
-├── src/
-│   ├── app.tsx              # Main chat UI React application
-│   ├── client.tsx           # Client-side entry point
-│   ├── server.ts            # AI agent logic and Cloudflare Worker handler
-│   ├── tools.ts             # Custom AI tools for content retrieval
-│   ├── shared.ts            # Shared types and interfaces
-│   ├── utils.ts             # Utility functions
-│   ├── styles.css           # Global styles
-│   ├── components/          # React components
-│   │   ├── chat-bubble/     # Chat message display
-│   │   ├── chat-input/      # User input component
-│   │   ├── overview-page/   # Content overview components
-│   │   ├── detail-card/     # Content detail views
-│   │   ├── content-tile/    # Content preview tiles
-│   │   └── ...              # Other UI components
-│   ├── hooks/               # Custom React hooks
-│   ├── instructions/        # AI system prompts
-│   │   └── system_prompt_agent.md
-│   ├── lib/                 # Utility libraries
-│   ├── pages/               # Page components
-│   └── providers/           # React context providers
-├── public/                  # Static assets
-├── tests/                   # Test files
-├── wrangler.jsonc          # Cloudflare Workers configuration
-├── vite.config.ts          # Vite build configuration
-└── package.json            # Project dependencies
-```
-
-## 🎨 Customization
+Your site will be live at you        # Main React chat UI
+│   ├── client.tsx                   # Client entry point
+│   ├── server.ts                    # AI Chat Durable Object + Worker handler
+│   ├── tools.ts                     # Custom tools for the AI agent
+│   ├── shared.ts                    # Shared types and interfaces
+│   ├── utils.ts                     # Utility functions
+│   ├── styles.css                   # Global Tailwind + CSS variables
+│   ├── components/
+│   │   ├── chat-bubble/             # Message display with streaming support
+│   │   ├── chat-input/              # Text input + suggestions
+│   │   ├── overview-page/           # Content overview (Academic, Projects, Work)
+│   │   ├── category-tiles/          # Category navigation grid
+│   │   ├── suggestion-chips/        # Quick suggestion buttons
+│   │   ├── sidebar/                 # Desktop sidebar navigation
+│   │   ├── menu-bar/                # Mobile menu
+│   │   ├── detail-card/             # Individual content cards
+│   │   ├── content-tile/            # Content preview tiles
+│   │   ├── memoized-markdown.tsx    # Optimized markdown rendering
+│   │   └── ...                      # Other UI components
+│   ├── hooks/
+│   │   ├── useClickOutside.tsx      # Click-outside detection
+│   │   ├── useMenuNavigation.tsx    # Menu keyboard navigation
+│   │   └── useTheme.ts              # Dark/light theme management
+│   ├── instructions/
+│   │   └── system_prompt_agent.md   # AI agent system prompt
+│   ├── lib/
+│   │   └── utils.ts                 # Utility helpers
+│   ├── providers/                   # React context providers
+│   │   ├── ModalProvider.tsx        # Modal state management
+│   │   └── TooltipProvider.tsx      # Tooltip state management
+│   └── pages/                       # Page layouts
+├── figma/                           # Figma component exports (UI kit)
+├── public/                          # Static assets
+├── tests/                           # Test suite
+├── wrangler.jsonc                   # Cloudflare Workers configuration
+├── vite.config.ts                   # Vite build configuration
+├── vitest.config.ts                 # Vitest test configuration
+├── biome.json                       # Biome linting configuration
+├── tsArchitecture & Customization
 
 ### Database Schema
 
-The project uses Cloudflare D1 (SQLite) with separate tables for different content types:
-- `academic` - Academic achievements and research
-- `work` - Professional projects and experience
-- `projects` - Personal projects
-
-Each table should have this schema:
+The project uses Cloudflare D1 (SQLite) with flexible content tables:
 
 ```sql
-CREATE TABLE {table_name} (
+CREATE TABLE content (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT NOT NULL,
-  type TEXT NOT NULL,
-  tags TEXT,  -- JSON array as string
+  type TEXT NOT NULL,        -- "project", "blog", "academic", "work"
+  tags TEXT,                 -- JSON array as string
   date TEXT,
   fullContent TEXT,
   link_to_article TEXT
 );
 ```
 
-Add your content using SQL `INSERT` statements or the Wrangler CLI.
+Content is organized by type, allowing the AI agent to intelligently fetch and present relevant information based on user queries.
 
-### Adding Custom Tools
+### AI Tools & Agent
 
-Tools are defined in [tools.ts](src/tools.ts). Each tool can:
-1. Fetch data from the database using the injected `fetchContent` function
-2. Return structured data with a component name to render UI elements
+Tools are defined in [src/tools.ts](src/tools.ts) and give the agent capabilities to:
+- Query the D1 database for content
+- Render specific React components based on results
+- Maintain context across the conversation
 
-Example of adding a new tool:
-
-```ts
-const getBlogPosts = tool({
-  description: `Shows blog posts and articles`,
-  inputSchema: z.object({ message: z.string() }),
-  execute: async ({ message }) => {
-    const data = await fetchContent('blog');
-    return {
-      type: 'react-component',
-      data,
-      componentName: 'BlogOverviewPage',
-      message: message
-    };
-  }
-});
-```
+Each tool can:
+1. Accept parameters from the AI's reasoning
+2. Fetch data from the database (with caching)
+3. Return component specifications for rendering UI
 
 ### Customizing the AI Agent
 
-The agent's behavior is controlled by:
-1. **System Prompt** - [system_prompt_agent.md](src/instructions/system_prompt_agent.md) defines the AI's personality and instructions
-2. **Available Tools** - Defined in [tools.ts](src/tools.ts)
-3. **Model Configuration** - In [server.ts](src/server.ts), currently using `gpt-4o-2024-11-20`
+The agent behavior is controlled by:
+
+1. **System Prompt** - [src/instructions/system_prompt_agent.md](src/instructions/system_prompt_agent.md)
+   - Defines the AI's personality and instructions
+   - Controls available tools and their usage
+
+2. **Chat Durable Object** - [src/server.ts](src/server.ts)
+   - Implements the `Chat` class extending `AIChatAgent`
+   - Handles streaming responses with `streamText`
+   - Manages session caching with TTL
+   - Implements retry logic for database resilience
+
+3. **Model Configuration** - Currently using `gpt-4o-2024-11-20` from OpenAI
 
 ### Customizing the UI
 
-The chat interface components can be customized:
-- **Theme** - Modify Tailwind configuration and CSS variables in [styles.css](src/styles.css)
+- **Theme** - Modify Tailwind config and CSS variables in [src/styles.css](src/styles.css)
+- **Components** - Update or add components in `src/components/`
+- **Chat Interface** - Customize message rendering, input styling, and layout
+- **Overview Pages** - Each content type has a dedicated overview page component
+- **Icons** - Uses Phosphor Icons; browse [phosphoricons.com](https://phosphoricons.com)
+
+### Session Management
+
+Each visitor gets a unique session ID that maps to a Durable Object instance:
+- Persistent across page reloads (stored in sessionStorage)
+- Maintains chat history and conversation context
+- In-memory caching with configurable TTL
+- Automatic retry logic for transient failures
+- Connection health checks
+� Scripts
+
+```bash
+npm start          # Start Vite dev server + Wrangler Worker
+npm run deploy     # Build and deploy to Cloudflare Workers
+npm test           # Run Vitest test suite
+npm run types      # Generate TypeScript types for Wrangler
+npm run format     # Format code with Prettier
+npm run check      # Check formatting + lint with Biome + TypeScript
+npm run set_secrets  # Load .dev.vars into Cloudflare
+```
+
+## 📊 Observability
+
+The project includes full observability with LangSmith:
+
+- **Trace AI interactions** - Every tool call and agent step is traced
+- **Debug streaming** - Monitor real-time token streaming
+- **Performance metrics** - Track latency and token usage
+- **Error tracking** - Detailed error logs for debugging
+
+Configure with `LANGSMITH_API_KEY` in `.dev.vars` for production tracing.ilwind configuration and CSS variables in [styles.css](src/styles.css)
 - **Components** - Update or create new components in `src/components/`
 - **Overview Pages** - Customize how content is displayed in overview components
 - **Chat Bubbles** - Modify message rendering in the chat-bubble component
