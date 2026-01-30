@@ -1,4 +1,5 @@
 import { ExternalLink, MessageCircle, Calendar, Tag, X } from 'lucide-react';
+import { MemoizedMarkdown } from '../memoized-markdown';
 
 interface DetailCardProps {
   title: string;
@@ -7,7 +8,6 @@ interface DetailCardProps {
   tags?: string[];
   date?: string;
   link?: string;
-  link_to_article?: string;
   onBack?: () => void;
 }
 
@@ -18,7 +18,6 @@ export function DetailCard({
   tags,
   date,
   link,
-  link_to_article,
   onBack
 }: DetailCardProps) {
   return (
@@ -57,7 +56,7 @@ export function DetailCard({
       <p className="text-[#D1D5DB] mb-[20px] leading-relaxed">{description}</p>
 
       <div className="bg-[#16181D] rounded-[12px] p-[16px] mb-[20px] border border-[#252831]">
-        <p className="text-[#D1D5DB] whitespace-pre-line">{fullContent}</p>
+        <MemoizedMarkdown content={fullContent} id={title} />
       </div>
 
       {tags && tags.length > 0 && (
@@ -80,7 +79,7 @@ export function DetailCard({
 
       <div className="flex gap-[12px] flex-wrap">
         <button
-          onClick={link_to_article ? () => window.open(link_to_article, '_blank') : undefined}
+          onClick={link ? () => window.open(link, '_blank') : undefined}
           className="bg-[#2D3AEE] hover:bg-[#3F4BFF] text-white rounded-[10px] px-[20px] py-[12px] transition-colors flex items-center gap-[8px]"
         >
           <ExternalLink size={18} />
