@@ -3,7 +3,7 @@ export interface ContentItem {
   title: string;
   description: string;
   tags?: string[];
-  link_to_article?: string;
+  link?: string;
   type: 'project' | 'blog' | 'academic' | 'work';
   date?: string;
   fullContent?: string;

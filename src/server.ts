@@ -43,7 +43,7 @@ const ContentItemSchema = z.object({
     .optional(),
   date: z.string().nullable().optional().transform(val => val ?? undefined),
   fullContent: z.string().nullable().optional().transform(val => val ?? undefined),
-  link_to_article: z.string().nullable().optional().transform(val => val ?? undefined)
+  link: z.string().nullable().optional().transform(val => val ?? undefined)
 });
 
 /**

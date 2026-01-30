@@ -146,45 +146,51 @@ This uses the `.dev.vars` file to populate secrets on the remote Cloudflare acco
 npm run deploy
 ```
 
-Your site will be live at you        # Main React chat UI
-│   ├── client.tsx                   # Client entry point
-│   ├── server.ts                    # AI Chat Durable Object + Worker handler
-│   ├── tools.ts                     # Custom tools for the AI agent
-│   ├── shared.ts                    # Shared types and interfaces
-│   ├── utils.ts                     # Utility functions
-│   ├── styles.css                   # Global Tailwind + CSS variables
-│   ├── components/
-│   │   ├── chat-bubble/             # Message display with streaming support
-│   │   ├── chat-input/              # Text input + suggestions
-│   │   ├── overview-page/           # Content overview (Academic, Projects, Work)
-│   │   ├── category-tiles/          # Category navigation grid
-│   │   ├── suggestion-chips/        # Quick suggestion buttons
-│   │   ├── sidebar/                 # Desktop sidebar navigation
-│   │   ├── menu-bar/                # Mobile menu
-│   │   ├── detail-card/             # Individual content cards
-│   │   ├── content-tile/            # Content preview tiles
-│   │   ├── memoized-markdown.tsx    # Optimized markdown rendering
-│   │   └── ...                      # Other UI components
-│   ├── hooks/
-│   │   ├── useClickOutside.tsx      # Click-outside detection
-│   │   ├── useMenuNavigation.tsx    # Menu keyboard navigation
-│   │   └── useTheme.ts              # Dark/light theme management
-│   ├── instructions/
-│   │   └── system_prompt_agent.md   # AI agent system prompt
-│   ├── lib/
-│   │   └── utils.ts                 # Utility helpers
-│   ├── providers/                   # React context providers
-│   │   ├── ModalProvider.tsx        # Modal state management
-│   │   └── TooltipProvider.tsx      # Tooltip state management
-│   └── pages/                       # Page layouts
-├── figma/                           # Figma component exports (UI kit)
-├── public/                          # Static assets
-├── tests/                           # Test suite
-├── wrangler.jsonc                   # Cloudflare Workers configuration
-├── vite.config.ts                   # Vite build configuration
-├── vitest.config.ts                 # Vitest test configuration
-├── biome.json                       # Biome linting configuration
-├── tsArchitecture & Customization
+Your site will be live at your Cloudflare Workers URL.
+
+## 🗂️ Project Structure
+
+```
+src/
+├── app.tsx                       # Main React chat UI
+├── client.tsx                    # Client entry point
+├── server.ts                     # AI Chat Durable Object + Worker handler
+├── tools.ts                      # Custom tools for the AI agent
+├── shared.ts                     # Shared types and interfaces
+├── utils.ts                      # Utility functions
+├── styles.css                    # Global Tailwind + CSS variables
+├── components/
+│   ├── chat-bubble/              # Message display with streaming support
+│   ├── chat-input/               # Text input + suggestions
+│   ├── overview-page/            # Content overview (Academic, Projects, Work)
+│   ├── category-tiles/           # Category navigation grid
+│   ├── suggestion-chips/         # Quick suggestion buttons
+│   ├── sidebar/                  # Desktop sidebar navigation
+│   ├── menu-bar/                 # Mobile menu
+│   ├── detail-card/              # Individual content cards
+│   ├── content-tile/             # Content preview tiles
+│   ├── memoized-markdown.tsx     # Optimized markdown rendering
+│   └── ...                       # Other UI components
+├── hooks/
+│   ├── useClickOutside.tsx       # Click-outside detection
+│   ├── useMenuNavigation.tsx     # Menu keyboard navigation
+│   └── useTheme.ts               # Dark/light theme management
+├── instructions/
+│   └── system_prompt_agent.md    # AI agent system prompt
+├── lib/
+│   └── utils.ts                  # Utility helpers
+├── providers/                    # React context providers
+│   ├── ModalProvider.tsx         # Modal state management
+│   └── TooltipProvider.tsx       # Tooltip state management
+└── pages/                        # Page layouts
+figma/                            # Figma component exports (UI kit)
+public/                           # Static assets
+tests/                            # Test suite
+wrangler.jsonc                    # Cloudflare Workers configuration
+vite.config.ts                    # Vite build configuration
+vitest.config.ts                  # Vitest test configuration
+biome.json                        # Biome linting configuration
+```
 
 ### Database Schema
 
@@ -249,15 +255,16 @@ Each visitor gets a unique session ID that maps to a Durable Object instance:
 - In-memory caching with configurable TTL
 - Automatic retry logic for transient failures
 - Connection health checks
-� Scripts
+
+## ⚙️ Scripts
 
 ```bash
-npm start          # Start Vite dev server + Wrangler Worker
-npm run deploy     # Build and deploy to Cloudflare Workers
-npm test           # Run Vitest test suite
-npm run types      # Generate TypeScript types for Wrangler
-npm run format     # Format code with Prettier
-npm run check      # Check formatting + lint with Biome + TypeScript
+npm start            # Start Vite dev server + Wrangler Worker
+npm run deploy       # Build and deploy to Cloudflare Workers
+npm test             # Run Vitest test suite
+npm run types        # Generate TypeScript types for Wrangler
+npm run format       # Format code with Prettier
+npm run check        # Check formatting + lint with Biome + TypeScript
 npm run set_secrets  # Load .dev.vars into Cloudflare
 ```
 
@@ -270,10 +277,7 @@ The project includes full observability with LangSmith:
 - **Performance metrics** - Track latency and token usage
 - **Error tracking** - Detailed error logs for debugging
 
-Configure with `LANGSMITH_API_KEY` in `.dev.vars` for production tracing.ilwind configuration and CSS variables in [styles.css](src/styles.css)
-- **Components** - Update or create new components in `src/components/`
-- **Overview Pages** - Customize how content is displayed in overview components
-- **Chat Bubbles** - Modify message rendering in the chat-bubble component
+Configure with `LANGSMITH_API_KEY` in `.dev.vars` for production tracing.
 
 ## 💡 How It Works
 
@@ -285,16 +289,6 @@ Configure with `LANGSMITH_API_KEY` in `.dev.vars` for production tracing.ilwind 
 6. **Conversation continues** - The AI can answer follow-up questions with full context
 
 This architecture combines the flexibility of conversational AI with the rich interactivity of modern web applications, creating a unique and engaging way for visitors to explore portfolio content.
-
-## 🔧 Available Scripts
-
-- `npm start` - Start development server with Vite
-- `npm run deploy` - Build and deploy to Cloudflare Workers
-- `npm run set_secrets` - Upload environment variables to Cloudflare
-- `npm run types` - Generate TypeScript types from Wrangler
-- `npm test` - Run tests with Vitest
-- `npm run format` - Format code with Prettier
-- `npm run check` - Run type checking and linting
 
 ## 📝 License
 
