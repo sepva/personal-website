@@ -44,6 +44,18 @@ const markdownComponents: Components = {
   // Style strong and emphasis
   strong: ({ children }) => <strong className="font-bold">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
+  
+  // Style links
+  a: ({ children, href }) => (
+    <a 
+      href={href} 
+      target="_blank" 
+      rel="noopener noreferrer"
+      className="text-[#5560FF] hover:text-[#6B7BFF] hover:underline transition-colors"
+    >
+      {children}
+    </a>
+  ),
 };
 
 export const MemoizedMarkdown = memo(

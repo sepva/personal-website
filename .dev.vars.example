@@ -1,3 +1,5 @@
-OPENAI_API_KEY=sk-proj-1234567890
-# Optional - Cloudflare AI Gateway https://developers.cloudflare.com/ai-gateway/
-# GATEWAY_BASE_URL=https://gateway.ai.cloudflare.com/v1/..
+OPENAI_API_KEY=sk-proj-...
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=<your-api-key>
+LANGSMITH_PROJECT=<your-project-name>

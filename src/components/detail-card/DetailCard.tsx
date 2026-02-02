@@ -53,8 +53,6 @@ export function DetailCard({
         )}
       </div>
 
-      <p className="text-[#D1D5DB] mb-[20px] leading-relaxed">{description}</p>
-
       <div className="bg-[#16181D] rounded-[12px] p-[16px] mb-[20px] border border-[#252831]">
         <MemoizedMarkdown content={fullContent} id={title} />
       </div>
@@ -77,15 +75,6 @@ export function DetailCard({
         </div>
       )}
 
-      <div className="flex gap-[12px] flex-wrap">
-        <button
-          onClick={link ? () => window.open(link, '_blank') : undefined}
-          className="bg-[#2D3AEE] hover:bg-[#3F4BFF] text-white rounded-[10px] px-[20px] py-[12px] transition-colors flex items-center gap-[8px]"
-        >
-          <ExternalLink size={18} />
-          <span>Open full write-up</span>
-        </button>
-      </div>
     </div>
   );
 }

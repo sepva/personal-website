@@ -1,6 +1,6 @@
 # 💼 Personal Website - Interactive AI Chat Portfolio
 
-An innovative personal portfolio and CV presented through an **AI-powered chat interface**. Instead of navigating through traditional web pages, visitors can have a natural conversation with an AI agent to learn about projects, achievements, experience, and expertise.
+An innovative personal portfolio and CV for **Seppe Vanswegenoven** presented through an **AI-powered chat interface**. Instead of navigating through traditional web pages, visitors can have a natural conversation with an AI agent to learn about projects, achievements, experience, and expertise.
 
 ## 🎯 Project Overview
 
@@ -10,6 +10,19 @@ This website serves as a comprehensive online presence, showcasing:
 - **Professional Experience** - Career history and professional projects
 - **Interactive Content** - Rich UI components and overview pages rendered dynamically within chat responses
 - **Conversation-Driven Discovery** - Ask the AI agent anything about your experience, skills, and work
+
+## 📚 Content Management
+
+All portfolio content (projects, academic work, professional experience) is managed in a separate repository: **[sepva/personal-website-rag](https://github.com/sepva/personal-website-rag)**
+
+That repository contains:
+- Markdown content files organized by type (projects, academic, work, blogs)
+- Cloudflare Workflow for automated content synchronization
+- Image CDN transformation (converts local paths to GitHub raw URLs)
+- Content embedding generation using Cloudflare AI
+- Automated population of D1 database and Vectorize index
+
+**To add or update content**, visit the [sepva/personal-website-rag](https://github.com/sepva/personal-website-rag) repository for detailed documentation on the content workflow.
 
 ## ✨ What Makes This Special
 
@@ -84,7 +97,7 @@ The AI agent uses custom tools to fetch relevant content and can render React co
 1. Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/sepva/personal-website.git
 cd personal-website
 ```
 
@@ -114,7 +127,16 @@ npx wrangler d1 create personal-website-db
 # Update wrangler.jsonc with your database ID
 ```
 
-Then create your database schema and populate it with your content.
+Create a Vectorize index:
+
+```bash
+# Create the vector index
+npx wrangler vectorize create personal-website-index --dimensions=768 --metric=cosine
+
+# Update wrangler.jsonc with your index name
+```
+
+For content population, see the [sepva/personal-website-rag](https://github.com/sepva/personal-website-rag) repository which handles automated content synchronization via Cloudflare Workflows.
 
 ### Development
 
@@ -194,34 +216,58 @@ biome.json                        # Biome linting configuration
 
 ### Database Schema
 
-The project uses Cloudflare D1 (SQLite) with flexible content tables:
+The project uses Cloudflare D1 (SQLite) with **four separate content tables**, one for each content type:
 
-```sql
-CREATE TABLE content (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  type TEXT NOT NULL,        -- "project", "blog", "academic", "work"
-  tags TEXT,                 -- JSON array as string
-  date TEXT,
-  fullContent TEXT,
-  link_to_article TEXT
-);
+- `projects` - Personal side projects and development work
+- `academic` - Education, research, and scholarly accomplishments
+- `work` - Professional experience and career history
+- `blogs` - Blog posts and articles
+
+Each table follows the `ContentItem` interface structure:
+
+```typescript
+interface ContentItem {
+  id: string;
+  title: string;
+  description: string;
+  tags?: string[];           // Stored as JSON string in D1
+  link?: string;
+  type: 'project' | 'blog' | 'academic' | 'work';
+  date?: string;
+  fullContent?: string;      // Full markdown content
+}
 ```
 
-Content is organized by type, allowing the AI agent to intelligently fetch and present relevant information based on user queries.
+**Vector Search:** Each content item's `fullContent` is embedded using Cloudflare AI (`@cf/baai/bge-base-en-v1.5`) and stored in the Vectorize index with metadata filtering by `data_type` (table name) for semantic search capabilities.
+
+**Schema Management:** Tables are created and populated automatically via Cloudflare Workflows in the [sepva/personal-website-rag](https://github.com/sepva/personal-website-rag) repository.
 
 ### AI Tools & Agent
 
-Tools are defined in [src/tools.ts](src/tools.ts) and give the agent capabilities to:
-- Query the D1 database for content
-- Render specific React components based on results
-- Maintain context across the conversation
+Four custom tools are defined in [src/tools.ts](src/tools.ts) that give the AI agent specialized capabilities:
 
-Each tool can:
-1. Accept parameters from the AI's reasoning
-2. Fetch data from the database (with caching)
-3. Return component specifications for rendering UI
+1. **`getAcademic`** - Retrieves academic content from the `academic` table
+   - Returns education, research, and scholarly accomplishments
+   - Renders `AcademicOverviewPage` component inline
+
+2. **`getWork`** - Retrieves professional experience from the `work` table
+   - Returns career history and professional projects
+   - Renders `WorkOverviewPage` component inline
+
+3. **`getProjects`** - Retrieves personal projects from the `projects` table
+   - Returns side projects and personal development work
+   - Renders `ProjectsOverviewPage` component inline
+
+4. **`semanticSearch`** - Performs vector-based semantic search across all content
+   - Accepts a natural language query
+   - Uses Cloudflare AI to generate query embeddings
+   - Searches Vectorize index and cross-references with D1 for full content
+   - Returns top-K most relevant results (default: 3)
+
+Each tool:
+1. Accepts parameters from the AI's reasoning
+2. Fetches data from D1 database (with 5-minute TTL caching)
+3. Returns React component specifications for inline rendering in chat
 
 ### Customizing the AI Agent
 
