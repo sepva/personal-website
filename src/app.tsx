@@ -14,8 +14,7 @@ import { ChatInput } from "@/components/chat-input/ChatInput";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { AcademicOverviewPage } from "@/components/overview-page/AcademicOverviewPage";
 import { PersonalProjectsOverviewPage } from "./components/overview-page/PersonalProjectsOverviewPage";
-import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";
-type MessageType = 'bot' | 'user' | 'system';
+import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";import { ContactForm } from "./components/contact-form/ContactForm";type MessageType = 'bot' | 'user' | 'system';
 
 interface CustomMessage {
   id: string;
@@ -215,6 +214,14 @@ export default function Chat() {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <ProfessionalProjectsOverviewPage data={message.data || []} />
+                  </ChatBubble>
+                );
+              }
+
+              if (message.component === 'ContactForm') {
+                return (
+                  <ChatBubble key={message.id} type={message.type}>
+                    <ContactForm data={message.data} />
                   </ChatBubble>
                 );
               }

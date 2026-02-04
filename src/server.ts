@@ -70,9 +70,12 @@ export class Chat extends AIChatAgent<Env> {
   private lastDBActivity: number = Date.now();
   private isConnectionValid: boolean = true;
 
+  // Rate limiting for contact form submissions (timestamps of submissions)
+  private contactSubmissions: number[] = [];
+
   /**
    * Called when a WebSocket connection is established
-   * Captures the connection ID for session tracking
+   * Captures the connection ID for session tracking and initializes tables
    */
   async onConnect(connection: any) {
     // Store connection ID in the WebSocket attachment so it persists through hibernation
@@ -81,6 +84,29 @@ export class Chat extends AIChatAgent<Env> {
       console.log(`Chat session started with connection ID: ${connection.id}`);
     } else {
       console.warn("Connection established but no connection ID available");
+    }
+
+    // Create contact_messages table if it doesn't exist
+    try {
+      await this.env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS contact_messages (
+          id TEXT,
+          email TEXT,
+          name TEXT,
+          message TEXT,
+          timestamp TEXT
+        )
+      `).run();
+      console.log("Contact messages table initialized");
+
+      // Create index on timestamp for efficient rate limit queries
+      await this.env.DB.prepare(`
+        CREATE INDEX IF NOT EXISTS idx_contact_messages_timestamp 
+        ON contact_messages(timestamp)
+      `).run();
+      console.log("Contact messages timestamp index initialized");
+    } catch (error) {
+      console.error("Failed to create contact_messages table:", error);
     }
   }
 
@@ -144,7 +170,7 @@ export class Chat extends AIChatAgent<Env> {
   private async validateConnection(): Promise<boolean> {
     try {
       // Execute a minimal query to test connection validity
-      const { results } = await this.env.DB.prepare(
+      await this.env.DB.prepare(
         "SELECT 1 as health_check"
       ).all();
       
@@ -384,6 +410,99 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   /**
+   * Save a contact message to the database with rate limiting
+   * Checks three levels:
+   * 1. Global rate limit: 100 submissions per hour (across all sessions and emails)
+   * 2. Session-based rate limit: 3 per hour
+   * 3. Email-based rate limit: 3 per hour per email
+   */
+  async saveContactMessage(email: string, name: string, message: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Clean up old submissions from rate limit tracking (older than 1 hour)
+      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+      this.contactSubmissions = this.contactSubmissions.filter(timestamp => timestamp > oneHourAgo);
+
+      console.log(`Current session submissions in last hour: ${this.contactSubmissions.length}`);
+
+      // Check global rate limit (max 100 per hour across all sessions and emails)
+      const globalRateLimitResult = await this.executeDBQuery(async () => {
+        const oneHourAgoISO = new Date(oneHourAgo).toISOString();
+        const { results } = await this.env.DB.prepare(
+          "SELECT COUNT(*) as count FROM contact_messages WHERE timestamp > ?"
+        )
+          .bind(oneHourAgoISO)
+          .all();
+        
+        return results[0] as { count: number };
+      }, "checkGlobalRateLimit");
+
+      if (globalRateLimitResult.count >= 100) {
+        console.warn(`Global rate limit reached: ${globalRateLimitResult.count} submissions in last hour`);
+        return {
+          success: false,
+          error: "Service is currently experiencing high traffic. Please try again later."
+        };
+      }
+
+      console.log(`Global submissions in last hour: ${globalRateLimitResult.count}/100`);
+
+      // Check session-based rate limit (max 3 per hour)
+      if (this.contactSubmissions.length >= 3) {
+        const oldestSubmission = Math.min(...this.contactSubmissions);
+        const minutesUntilAvailable = Math.ceil((oldestSubmission + (60 * 60 * 1000) - Date.now()) / (60 * 1000));
+        return {
+          success: false,
+          error: `Rate limit reached. Please try again in ${minutesUntilAvailable} minute${minutesUntilAvailable !== 1 ? 's' : ''}.`
+        };
+      }
+
+      // Check email-based rate limit (max 3 per hour per email)
+      const emailRateLimitResult = await this.executeDBQuery(async () => {
+        const oneHourAgoISO = new Date(oneHourAgo).toISOString();
+        const { results } = await this.env.DB.prepare(
+          "SELECT COUNT(*) as count FROM contact_messages WHERE email = ? AND timestamp > ?"
+        )
+          .bind(email, oneHourAgoISO)
+          .all();
+        
+        return results[0] as { count: number };
+      }, "checkEmailRateLimit");
+
+      if (emailRateLimitResult.count >= 3) {
+        return {
+          success: false,
+          error: "Rate limit reached. Please try again later."
+        };
+      }
+
+      // Generate ID and timestamp
+      const id = crypto.randomUUID();
+      const timestamp = new Date().toISOString();
+
+      // Insert into database
+      await this.executeDBQuery(async () => {
+        await this.env.DB.prepare(
+          "INSERT INTO contact_messages (id, email, name, message, timestamp) VALUES (?, ?, ?, ?, ?)"
+        )
+          .bind(id, email, name, message, timestamp)
+          .run();
+      }, "insertContactMessage");
+
+      // Add to session rate limit tracking
+      this.contactSubmissions.push(Date.now());
+
+      console.log(`Contact message saved: ${id} from ${email}`);
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to save contact message:", error);
+      return {
+        success: false,
+        error: "Failed to save message. Please try again later."
+      };
+    }
+  }
+
+  /**
    * Handles incoming chat messages and manages the response stream
    */
   async onChatMessage(
@@ -435,6 +554,63 @@ export class Chat extends AIChatAgent<Env> {
  */
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
+    const url = new URL(request.url);
+    
+    // Handle contact form submissions
+    if (url.pathname === '/api/contact' && request.method === 'POST') {
+      try {
+        // Parse request body
+        const body = await request.json() as { email: string; name: string; message: string; sessionId: string };
+        
+        // Validate input
+        const contactSchema = z.object({
+          email: z.string().email(),
+          name: z.string().min(1),
+          message: z.string().min(1).max(1000),
+          sessionId: z.string()
+        });
+
+        const validation = contactSchema.safeParse(body);
+        if (!validation.success) {
+          return new Response(
+            JSON.stringify({ error: "Invalid input", details: validation.error.errors }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const { email, name, message, sessionId } = validation.data;
+
+        // Get the Chat Durable Object stub for this session
+        const id = env.Chat.idFromName(sessionId);
+        const chatStub = env.Chat.get(id) as any;
+
+        // Call saveContactMessage directly on the stub
+        // The stub will route this to the actual Durable Object instance
+        const result = await chatStub.saveContactMessage(email, name, message);
+
+        if (!result.success) {
+          return new Response(
+            JSON.stringify({ error: result.error }),
+            { 
+              status: result.error?.includes('Rate limit') ? 429 : 500,
+              headers: { 'Content-Type': 'application/json' }
+            }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error("Error handling contact submission:", error);
+        return new Response(
+          JSON.stringify({ error: "Internal server error" }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Try routing to the agent first (for API endpoints like /api/chat)
     const agentResponse = await routeAgentRequest(request, env);
     if (agentResponse) {
