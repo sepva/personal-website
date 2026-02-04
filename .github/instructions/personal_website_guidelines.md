@@ -529,6 +529,13 @@ import { AIChatAgent } from "agents/ai-chat-agent";
 import type { StreamTextOnFinishCallback, ToolSet } from "ai";
 
 export class Chat extends AIChatAgent<Env> {
+  // In-memory cache for database results with TTL
+  private contentCache: Map<string, { data: ContentItem[]; timestamp: number }> = new Map();
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  
+  // Rate limiting for contact form
+  private contactSubmissions: number[] = [];
+  
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
@@ -539,7 +546,60 @@ export class Chat extends AIChatAgent<Env> {
   async executeTask(description: string, _task: Schedule<string>) {
     // Scheduled task implementation
   }
+  
+  async onConnect(connection: any) {
+    // Initialize database tables (e.g., contact_messages)
+    await this.env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS contact_messages (
+        id TEXT,
+        email TEXT,
+        name TEXT,
+        message TEXT,
+        timestamp TEXT
+      )
+    `).run();
+  }
 }
+```
+
+### Rate Limiting Configuration
+
+Configure rate limits in `wrangler.jsonc` using environment variables:
+
+```jsonc
+{
+  "vars": {
+    "RATE_LIMIT_GLOBAL_PER_HOUR": "100",
+    "RATE_LIMIT_SESSION_PER_HOUR": "3",
+    "RATE_LIMIT_EMAIL_PER_HOUR": "3"
+  }
+}
+```
+
+Implement rate limiting in the Durable Object:
+
+```typescript
+// Check session-level rate limit (in-memory)
+const now = Date.now();
+const oneHourAgo = now - 60 * 60 * 1000;
+this.contactSubmissions = this.contactSubmissions.filter(t => t > oneHourAgo);
+
+if (this.contactSubmissions.length >= this.env.RATE_LIMIT_SESSION_PER_HOUR) {
+  throw new Error("Rate limit exceeded");
+}
+
+// Check email-level rate limit (database)
+const emailCount = await this.env.DB.prepare(`
+  SELECT COUNT(*) as count FROM contact_messages
+  WHERE email = ? AND timestamp > datetime('now', '-1 hour')
+`).bind(email).first();
+
+if (emailCount.count >= this.env.RATE_LIMIT_EMAIL_PER_HOUR) {
+  throw new Error("Rate limit exceeded for this email");
+}
+
+// Record submission
+this.contactSubmissions.push(now);
 ```
 
 ### Worker Entry Point
@@ -1007,24 +1067,55 @@ export default useCustomHook;
 ### 6. Tool Definition Pattern
 
 ```typescript
-// Auto-execute tool
+// Auto-execute tool (returns data or component specification)
 const toolName = tool({
   description: "...",
   inputSchema: z.object({ ... }),
-  execute: async (args) => { ... }
+  execute: async (args) => {
+    const data = await fetchContent('dataType');
+    return {
+      type: 'react-component',
+      data,
+      componentName: 'ComponentName',
+      message: args.message
+    };
+  }
 });
 
-// Human-confirmation tool
-const confirmTool = tool({
-  description: "...",
-  inputSchema: z.object({ ... })
-  // No execute function
+// Vector search tool
+const vectorSearchTool = tool({
+  description: "Performs semantic search...",
+  inputSchema: z.object({
+    query: z.string(),
+    topK: z.number().default(3)
+  }),
+  execute: async ({ query, topK }) => {
+    const results = await vectorSearch(query, topK);
+    return { type: 'vector-search-results', data: results };
+  }
 });
 
-export const tools = { toolName, confirmTool } satisfies ToolSet;
-export const executions = {
-  confirmTool: async (args) => { ... }
-};
+// Contact form tool with rate limiting
+const contactForm = tool({
+  description: "Displays contact form...",
+  inputSchema: z.object({
+    message: z.string()
+  }),
+  execute: async ({ message }) => {
+    // Rate limiting enforced in server-side handler
+    return {
+      type: 'react-component',
+      componentName: 'ContactForm',
+      message
+    };
+  }
+});
+
+export const tools = {
+  toolName,
+  vectorSearchTool,
+  contactForm
+} satisfies ToolSet;
 ```
 
 ## Anti-Patterns to Avoid

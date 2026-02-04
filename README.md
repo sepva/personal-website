@@ -43,10 +43,12 @@ The AI agent uses custom tools to fetch relevant content and can render React co
 - 🗄️ **Cloudflare D1 SQLite** - Persistent content storage at the edge
 - 🔄 **Persistent Chat Sessions** - Durable Objects maintain chat history across reconnections
 - 🎨 **Dynamic Component Rendering** - React components rendered inline within chat messages
-- 🛠️ **Custom AI Tools** - Agent has tools to fetch projects, experience, and academic content
+- 🛠️ **Custom AI Tools** - Agent has 5 tools including content fetching, vector search, and contact form
 - 🌐 **Vector Search Ready** - Cloudflare Vectorize integration for semantic search
 - 🧠 **Smart Caching** - In-memory TTL-based cache for efficient database queries
 - 🔐 **Session-Scoped** - Each visitor gets their own isolated chat session
+- 📧 **Contact Form** - Visitors can send messages directly with configurable rate limiting
+- 🛡️ **Rate Limiting** - Configurable per-session and per-email rate limits for contact submissions
 - 📊 **Full Observability** - LangSmith integration for AI interaction tracing
 - 🎯 **Type-Safe** - Complete TypeScript support with Zod validation
 - 🌓 **Dark/Light Theme** - Theme support with system preference detection
@@ -238,35 +240,53 @@ interface ContentItem {
 }
 ```
 
+Additionally, a **`contact_messages` table** stores visitor messages:
+
+```typescript
+interface ContactMessage {
+  id: string;          // Unique message ID
+  email: string;       // Sender email
+  name: string;        // Sender name
+  message: string;     // Message content
+  timestamp: string;   // ISO timestamp
+}
+```
+
 **Vector Search:** Each content item's `fullContent` is embedded using Cloudflare AI (`@cf/baai/bge-base-en-v1.5`) and stored in the Vectorize index with metadata filtering by `data_type` (table name) for semantic search capabilities.
 
-**Schema Management:** Tables are created and populated automatically via Cloudflare Workflows in the [sepva/personal-website-rag](https://github.com/sepva/personal-website-rag) repository.
+**Schema Management:** Content tables are created and populated automatically via Cloudflare Workflows in the [sepva/personal-website-rag](https://github.com/sepva/personal-website-rag) repository. The `contact_messages` table is created automatically on first connection by the Chat Durable Object.
 
 ### AI Tools & Agent
 
-Four custom tools are defined in [src/tools.ts](src/tools.ts) that give the AI agent specialized capabilities:
+Five custom tools are defined in [src/tools.ts](src/tools.ts) that give the AI agent specialized capabilities:
 
-1. **`getAcademic`** - Retrieves academic content from the `academic` table
+1. **`getAcademicOverviewPage`** - Retrieves academic content from the `academic` table
    - Returns education, research, and scholarly accomplishments
    - Renders `AcademicOverviewPage` component inline
 
-2. **`getWork`** - Retrieves professional experience from the `work` table
+2. **`getProfessionalProjects`** - Retrieves professional experience from the `work` table
    - Returns career history and professional projects
-   - Renders `WorkOverviewPage` component inline
+   - Renders `ProfessionalProjectsOverviewPage` component inline
 
-3. **`getProjects`** - Retrieves personal projects from the `projects` table
+3. **`getPersonalProjects`** - Retrieves personal projects from the `projects` table
    - Returns side projects and personal development work
-   - Renders `ProjectsOverviewPage` component inline
+   - Renders `PersonalProjectsOverviewPage` component inline
 
-4. **`semanticSearch`** - Performs vector-based semantic search across all content
-   - Accepts a natural language query
+4. **`vectorSearchTool`** - Performs vector-based semantic search across all content
+   - Accepts a natural language query and optional topK parameter
    - Uses Cloudflare AI to generate query embeddings
    - Searches Vectorize index and cross-references with D1 for full content
-   - Returns top-K most relevant results (default: 3)
+   - Returns top-K most relevant results (default: 3, max: 10)
+
+5. **`contactForm`** - Displays an interactive contact form for visitor messages
+   - Renders `ContactForm` component inline
+   - Stores messages in `contact_messages` D1 table
+   - Enforces rate limits: 3 submissions per hour per session AND per email
+   - Rate limits configured via environment variables in `wrangler.jsonc`
 
 Each tool:
 1. Accepts parameters from the AI's reasoning
-2. Fetches data from D1 database (with 5-minute TTL caching)
+2. Fetches data from D1 database (with 5-minute TTL caching for content tools)
 3. Returns React component specifications for inline rendering in chat
 
 ### Customizing the AI Agent
@@ -302,6 +322,20 @@ Each visitor gets a unique session ID that maps to a Durable Object instance:
 - Automatic retry logic for transient failures
 - Connection health checks
 
+### Rate Limiting
+
+Contact form submissions are protected with configurable rate limits set in `wrangler.jsonc`:
+
+```jsonc
+"vars": {
+  "RATE_LIMIT_GLOBAL_PER_HOUR": "100",    // Global limit across all sessions
+  "RATE_LIMIT_SESSION_PER_HOUR": "3",     // Per-session limit
+  "RATE_LIMIT_EMAIL_PER_HOUR": "3"        // Per-email address limit
+}
+```
+
+Limits are enforced at both the session level (tracked in Durable Object) and email level (queries contact_messages table) to prevent abuse while allowing legitimate use.
+
 ## ⚙️ Scripts
 
 ```bash
@@ -333,8 +367,14 @@ Configure with `LANGSMITH_API_KEY` in `.dev.vars` for production tracing.
 4. **UI component renders** - Returns a React component specification to render inline
 5. **Chat displays result** - The overview page appears in the chat with all relevant content
 6. **Conversation continues** - The AI can answer follow-up questions with full context
+7. **Contact engagement** - When appropriate, the AI can show a contact form for direct messaging
 
-This architecture combines the flexibility of conversational AI with the rich interactivity of modern web applications, creating a unique and engaging way for visitors to explore portfolio content.
+The agent has **5 specialized tools**:
+- 3 content overview tools (academic, professional, personal projects)
+- 1 semantic search tool (vector-based search across all content)
+- 1 contact form tool (for visitor engagement with rate limiting)
+
+This architecture combines the flexibility of conversational AI with the rich interactivity of modern web applications, creating a unique and engaging way for visitors to explore portfolio content and connect directly.
 
 ## 📝 License
 
