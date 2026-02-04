@@ -411,10 +411,10 @@ export class Chat extends AIChatAgent<Env> {
 
   /**
    * Save a contact message to the database with rate limiting
-   * Checks three levels:
-   * 1. Global rate limit: 100 submissions per hour (across all sessions and emails)
-   * 2. Session-based rate limit: 3 per hour
-   * 3. Email-based rate limit: 3 per hour per email
+   * Checks three levels (configurable via environment variables):
+   * 1. Global rate limit: RATE_LIMIT_GLOBAL_PER_HOUR (default: 100) submissions per hour
+   * 2. Session-based rate limit: RATE_LIMIT_SESSION_PER_HOUR (default: 3) per hour
+   * 3. Email-based rate limit: RATE_LIMIT_EMAIL_PER_HOUR (default: 3) per hour per email
    */
   async saveContactMessage(email: string, name: string, message: string): Promise<{ success: boolean; error?: string }> {
     try {
@@ -424,7 +424,12 @@ export class Chat extends AIChatAgent<Env> {
 
       console.log(`Current session submissions in last hour: ${this.contactSubmissions.length}`);
 
-      // Check global rate limit (max 100 per hour across all sessions and emails)
+      // Get rate limit values from environment variables with defaults
+      const globalLimit = Number.parseInt(this.env.RATE_LIMIT_GLOBAL_PER_HOUR || "100", 10);
+      const sessionLimit = Number.parseInt(this.env.RATE_LIMIT_SESSION_PER_HOUR || "3", 10);
+      const emailLimit = Number.parseInt(this.env.RATE_LIMIT_EMAIL_PER_HOUR || "3", 10);
+
+      // Check global rate limit (across all sessions and emails)
       const globalRateLimitResult = await this.executeDBQuery(async () => {
         const oneHourAgoISO = new Date(oneHourAgo).toISOString();
         const { results } = await this.env.DB.prepare(
@@ -436,7 +441,7 @@ export class Chat extends AIChatAgent<Env> {
         return results[0] as { count: number };
       }, "checkGlobalRateLimit");
 
-      if (globalRateLimitResult.count >= 100) {
+      if (globalRateLimitResult.count >= globalLimit) {
         console.warn(`Global rate limit reached: ${globalRateLimitResult.count} submissions in last hour`);
         return {
           success: false,
@@ -444,10 +449,10 @@ export class Chat extends AIChatAgent<Env> {
         };
       }
 
-      console.log(`Global submissions in last hour: ${globalRateLimitResult.count}/100`);
+      console.log(`Global submissions in last hour: ${globalRateLimitResult.count}/${globalLimit}`);
 
-      // Check session-based rate limit (max 3 per hour)
-      if (this.contactSubmissions.length >= 3) {
+      // Check session-based rate limit
+      if (this.contactSubmissions.length >= sessionLimit) {
         const oldestSubmission = Math.min(...this.contactSubmissions);
         const minutesUntilAvailable = Math.ceil((oldestSubmission + (60 * 60 * 1000) - Date.now()) / (60 * 1000));
         return {
@@ -456,7 +461,7 @@ export class Chat extends AIChatAgent<Env> {
         };
       }
 
-      // Check email-based rate limit (max 3 per hour per email)
+      // Check email-based rate limit
       const emailRateLimitResult = await this.executeDBQuery(async () => {
         const oneHourAgoISO = new Date(oneHourAgo).toISOString();
         const { results } = await this.env.DB.prepare(
@@ -468,7 +473,7 @@ export class Chat extends AIChatAgent<Env> {
         return results[0] as { count: number };
       }, "checkEmailRateLimit");
 
-      if (emailRateLimitResult.count >= 3) {
+      if (emailRateLimitResult.count >= emailLimit) {
         return {
           success: false,
           error: "Rate limit reached. Please try again later."

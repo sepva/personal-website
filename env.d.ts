@@ -11,6 +11,9 @@ declare namespace Cloudflare {
 		LANGSMITH_ENDPOINT: string;
 		LANGSMITH_API_KEY: string;
 		LANGSMITH_PROJECT: string;
+		RATE_LIMIT_GLOBAL_PER_HOUR?: string;
+		RATE_LIMIT_SESSION_PER_HOUR?: string;
+		RATE_LIMIT_EMAIL_PER_HOUR?: string;
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
 		DB: D1Database;
 		VECTOR_INDEX: VectorizeIndex;
