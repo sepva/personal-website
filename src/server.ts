@@ -1,5 +1,5 @@
 import { routeAgentRequest } from "agents";
-import { AIChatAgent } from "agents/ai-chat-agent";
+import { AIChatAgent } from "@cloudflare/ai-chat";
 import {
   type StreamTextOnFinishCallback,
   stepCountIs,
@@ -18,9 +18,13 @@ import { z } from "zod";
 import { tools } from "./tools";
 import type { ContentItem } from "./shared";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
+import { inputGuardrailMiddleware } from "./middleware/inputGuardrail";
 
 const { streamText } = wrapAISDK(ai);
-const model = openai("gpt-4o-2024-11-20");
+const model = ai.wrapLanguageModel({
+  model: openai("gpt-4o-2024-11-20"),
+  middleware: inputGuardrailMiddleware
+});
 
 /**
  * Zod schema for validating and parsing ContentItem from database rows
@@ -514,12 +518,21 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // Get MCP tools safely (handles hot reload issues in development)
+    let mcpTools = {};
+    try {
+      mcpTools = this.mcp.getAITools();
+    } catch (error) {
+      console.warn('MCP tools not available (likely due to hot reload):', error instanceof Error ? error.message : error);
+      // Continue without MCP tools - they'll be available after a full reload
+    }
+
     const allTools = {
       ...tools(
         this.fetchContentPageFromDB.bind(this),
         this.queryVectorDatabase.bind(this)
       ),
-      ...this.mcp.getAITools()
+      ...mcpTools
     };
 
     const sessionId = this.getConnectionId();
@@ -528,7 +541,7 @@ export class Chat extends AIChatAgent<Env> {
       execute: async ({ writer }) => {
         const result = streamText({
           system: systemPrompt,
-          messages: convertToModelMessages(this.messages),
+          messages: await convertToModelMessages(this.messages),
           model,
           tools: allTools,
           providerOptions: {
