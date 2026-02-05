@@ -152,7 +152,7 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
     
     WHEN TO USE:
     - User asks specific questions about Seppe's skills, experiences, or achievements
-    - Questions like "Does Seppe know Python?" or "Tell me about his experience with RAG"
+    - Questions like "Does Seppe know Python?" or "Tell me about his experience with RAG", FAQ-style queries
     - When you need to find detailed information not immediately visible in overview components
     - For answering targeted questions that require searching through content
     - When exploring ambiguous topics that might span multiple categories
