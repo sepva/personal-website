@@ -1,9 +1,9 @@
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
-import { openai } from '@ai-sdk/openai';
-import { generateText } from 'ai';
+import { streamText } from 'ai';
 import { tool } from 'ai';
 import { z } from 'zod/v3';
 import validationPrompt from '../instructions/input_validation_prompt.md?raw';
+import { createOpenRouterProvider } from '../lib/openrouter';
 
 interface ValidationResult {
   allowed: boolean;
@@ -19,7 +19,8 @@ type VectorSearch = (query: string, topK?: number) => Promise<any[]>;
  * Factory function to create input guardrail middleware with vector search capability
  */
 export function createInputGuardrailMiddleware(
-  vectorSearch: VectorSearch
+  vectorSearch: VectorSearch,
+  env: Cloudflare.Env
 ): LanguageModelV3Middleware {
   // Create vector search tool for validation agent
   const vectorSearchTool = tool({
@@ -64,9 +65,13 @@ export function createInputGuardrailMiddleware(
     // Only validate if there are user messages
     if (conversationMessages.length > 0) {
       try {
-        // Make LLM validation call with vector search tool
-        const validationResult = await generateText({
-          model: openai('gpt-4o-mini'),
+        // Create OpenRouter provider for guardrail validation
+        const { provider: openrouter, primaryModel } = createOpenRouterProvider(env, env.OPENROUTER_GUARDRAIL_MODELS);
+        
+        // Use streamText (not generateText) to force /chat/completions endpoint
+        // generateText uses /responses which has incompatible tool schema
+        const validationStream = streamText({
+          model: openrouter(primaryModel),
           messages: [
             { role: 'system', content: validationPrompt },
             ...conversationMessages.map((msg: any) => ({
@@ -82,15 +87,21 @@ export function createInputGuardrailMiddleware(
           temperature: 0.1,
         });
 
+        // Consume the full stream to get the final text
+        let validationText = '';
+        for await (const chunk of validationStream.textStream) {
+          validationText += chunk;
+        }
+
         // Parse the JSON response
         let validation: ValidationResult;
         try {
           // Extract JSON from response (in case there's markdown formatting)
-          const jsonMatch = validationResult.text.match(/\{[\s\S]*\}/);
-          const jsonText = jsonMatch ? jsonMatch[0] : validationResult.text;
+          const jsonMatch = validationText.match(/\{[\s\S]*\}/);
+          const jsonText = jsonMatch ? jsonMatch[0] : validationText;
           validation = JSON.parse(jsonText);
         } catch (parseError) {
-          console.error('Failed to parse validation response:', validationResult.text);
+          console.error('Failed to parse validation response:', validationText);
           // If parsing fails, allow the request to proceed (fail open)
           validation = { allowed: true, reason: 'Validation parsing failed' };
         }

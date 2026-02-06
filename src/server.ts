@@ -2,14 +2,12 @@ import { routeAgentRequest } from "agents";
 import { AIChatAgent } from "@cloudflare/ai-chat";
 import {
   type StreamTextOnFinishCallback,
-  stepCountIs,
   createUIMessageStream,
   convertToModelMessages,
   createUIMessageStreamResponse,
   type ToolSet
 } from "ai";
 import * as ai from "ai";
-import { openai } from "@ai-sdk/openai";
 import {
   wrapAISDK,
   createLangSmithProviderOptions
@@ -19,6 +17,7 @@ import { tools } from "./tools";
 import type { ContentItem } from "./shared";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
 import { createInputGuardrailMiddleware } from "./middleware/inputGuardrail";
+import { createOpenRouterProvider } from "./lib/openrouter";
 
 const { streamText } = wrapAISDK(ai);
 
@@ -700,13 +699,34 @@ export class Chat extends AIChatAgent<Env> {
 
     // Create model with input guardrail middleware that has access to vector search
     const inputGuardrailMiddleware = createInputGuardrailMiddleware(
-      this.queryVectorDatabase.bind(this)
+      this.queryVectorDatabase.bind(this),
+      this.env
     );
     
+    // Create OpenRouter provider with model fallback chain
+    const { provider: openrouter, primaryModel } = createOpenRouterProvider(this.env, this.env.OPENROUTER_MODELS);
+    
     const model = ai.wrapLanguageModel({
-      model: openai("gpt-4o-2024-11-20"),
+      model: openrouter.chat(primaryModel),
       middleware: inputGuardrailMiddleware
     });
+
+    // Wrap onFinish callback to track model usage
+    const wrappedOnFinish: StreamTextOnFinishCallback<ToolSet> = async (event) => {
+      // Log which model was actually used by OpenRouter
+      const modelUsed = event.response?.modelId || 'unknown';
+      console.log(`[OpenRouter] Model used: ${modelUsed}`);
+      
+      // Log usage if available
+      if (event.usage) {
+        console.log(`[OpenRouter] Usage:`, event.usage);
+      }
+      
+      // Call original onFinish callback if provided
+      if (onFinish) {
+        await onFinish(event);
+      }
+    };
 
     // Wrap streamText call with retry logic for context/rate limit errors
     const result = await this.retryWithMessageTrimming(async () => {
@@ -724,10 +744,9 @@ export class Chat extends AIChatAgent<Env> {
         },
         // Type boundary: streamText expects specific tool types, but base class uses ToolSet
         // This is safe because our tools satisfy ToolSet interface (verified by 'satisfies' in tools.ts)
-        onFinish: onFinish as unknown as StreamTextOnFinishCallback<
+        onFinish: wrappedOnFinish as unknown as StreamTextOnFinishCallback<
           typeof allTools
-        >,
-        stopWhen: stepCountIs(10)
+        >
       });
     }, "streamText");
 
