@@ -36,7 +36,8 @@
 
 /* Markdown Body Styling */
 .markdown-body {
-  @apply text-neutral-900 dark:text-neutral-100 leading-relaxed;
+  @apply leading-relaxed;
+  color: inherit; /* Inherit color from parent instead of forcing neutral-900 */
 }
 
 /* Ensure proper line height and spacing */
