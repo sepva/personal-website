@@ -512,12 +512,177 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   /**
+   * Applies sliding window to message history
+   * Drops oldest conversation turns (user → assistant → tool → assistant sequences)
+   * to keep message count under MAX_HISTORY_MESSAGES
+   */
+  private async applySlidingWindow(): Promise<void> {
+    const maxMessages = Number.parseInt(
+      this.env.MAX_HISTORY_MESSAGES || "20",
+      10
+    );
+
+    const initialMessageCount = this.messages.length;
+    console.log(`[Sliding Window] Initial message count: ${initialMessageCount}, max allowed: ${maxMessages}`);
+
+    if (this.messages.length <= maxMessages) {
+      console.log(`[Sliding Window] No trimming needed (${this.messages.length}/${maxMessages})`);
+      return; // No need to trim
+    }
+
+    console.log(`[Sliding Window] Trimming required - analyzing conversation turns...`);
+
+    // Convert to model messages to understand structure
+    const modelMessages = await convertToModelMessages(this.messages);
+
+    // Find indices where conversation turns start (user messages)
+    const turnStartIndices: number[] = [];
+    modelMessages.forEach((msg, idx) => {
+      if (msg.role === "user") {
+        turnStartIndices.push(idx);
+      }
+    });
+
+    console.log(`[Sliding Window] Found ${turnStartIndices.length} conversation turns`);
+
+    // Calculate how many complete turns to drop
+    let messagesToDrop = 0;
+    let turnsToRemove = 0;
+    for (let i = 0; i < turnStartIndices.length - 1; i++) {
+      const turnStart = turnStartIndices[i];
+      const nextTurnStart = turnStartIndices[i + 1];
+      const turnLength = nextTurnStart - turnStart;
+
+      if (modelMessages.length - messagesToDrop - turnLength >= maxMessages) {
+        messagesToDrop += turnLength;
+        turnsToRemove++;
+        console.log(`[Sliding Window] Will drop turn ${i + 1} (${turnLength} messages, starting at index ${turnStart})`);
+      } else {
+        break;
+      }
+    }
+
+    if (messagesToDrop > 0) {
+      // Remove oldest messages from UIMessage array
+      // UIMessages and ModelMessages have 1:1 correspondence after conversion
+      this.messages = this.messages.slice(messagesToDrop);
+      console.log(`[Sliding Window] ✓ Dropped ${turnsToRemove} oldest turn(s) (${messagesToDrop} messages)`);
+      console.log(`[Sliding Window] ✓ Final message count: ${this.messages.length}/${maxMessages}`);
+    } else {
+      console.log(`[Sliding Window] No messages dropped - window already optimized`);
+    }
+  }
+
+  /**
+   * Retry wrapper for OpenAI API calls with message trimming on context/rate limit errors
+   * Implements exponential backoff and automatic message history reduction
+   */
+  private async retryWithMessageTrimming<T>(
+    fn: () => Promise<T>,
+    operationName: string,
+    maxAttempts: number = 3
+  ): Promise<T> {
+    let lastError: Error | null = null;
+    let delay = 100; // Start with 100ms
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`[Retry] Executing ${operationName} (attempt ${attempt}/${maxAttempts})`);
+        return await fn();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        // Log the full error for debugging
+        console.error(`[Retry] Error caught:`, error);
+        
+        // Check if error is recoverable (context length or rate limit)
+        // Handle both Error objects and structured error objects from OpenAI
+        let errorMessage = '';
+        if (lastError.message) {
+          errorMessage = lastError.message.toLowerCase();
+        }
+        // Check if error has a structured format (e.g., {error: {code: 'rate_limit_exceeded'}})
+        const errorObj = error as any;
+        const errorCode = errorObj?.error?.code || errorObj?.code || '';
+        
+        const isContextError = errorMessage.includes("context_length_exceeded") || 
+                               errorMessage.includes("context length") ||
+                               errorMessage.includes("maximum context") ||
+                               errorCode === "context_length_exceeded";
+        const isRateLimitError = errorMessage.includes("rate_limit_exceeded") ||
+                                 errorMessage.includes("rate limit") ||
+                                 errorMessage.includes("429") ||
+                                 errorCode === "rate_limit_exceeded";
+
+        if (!isContextError && !isRateLimitError) {
+          // Not a recoverable error, throw immediately
+          console.error(`[Retry] Non-recoverable error, throwing immediately`);
+          throw lastError;
+        }
+
+        const errorType = isContextError ? "context_length" : "rate_limit";
+        console.warn(
+          `[Retry] ${errorType} error on attempt ${attempt}/${maxAttempts}: ${lastError.message || JSON.stringify(errorObj)}`,
+          { delay, remainingAttempts: maxAttempts - attempt }
+        );
+
+        if (attempt < maxAttempts) {
+          // For context errors, try to drop oldest conversation turn
+          if (isContextError && this.messages.length > 0) {
+            console.log(`[Retry] Trimming messages due to context length error...`);
+            // Convert to model messages to find turn boundaries
+            const modelMessages = await convertToModelMessages(this.messages);
+            
+            // Find the second user message (first turn to keep)
+            let secondUserIdx = -1;
+            let userCount = 0;
+            for (let i = 0; i < modelMessages.length; i++) {
+              if (modelMessages[i].role === "user") {
+                userCount++;
+                if (userCount === 2) {
+                  secondUserIdx = i;
+                  break;
+                }
+              }
+            }
+
+            if (secondUserIdx > 0) {
+              // Drop everything before the second user message
+              const beforeCount = this.messages.length;
+              this.messages = this.messages.slice(secondUserIdx);
+              console.log(`[Retry] Dropped oldest conversation turn (${beforeCount - this.messages.length} messages), ${this.messages.length} remaining`);
+            } else if (this.messages.length > 0) {
+              // Fallback: just drop the oldest message
+              this.messages = this.messages.slice(1);
+              console.log(`[Retry] Dropped oldest message as fallback, ${this.messages.length} remaining`);
+            }
+          }
+
+          // Wait with exponential backoff
+          console.log(`[Retry] Waiting ${delay}ms before retry...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay = Math.min(delay * 2, 2000); // Max 2 seconds
+        }
+      }
+    }
+
+    // All retries exhausted
+    console.error(`[Retry] All ${maxAttempts} attempts exhausted`);
+    throw new Error(
+      `${operationName} failed after ${maxAttempts} attempts: ${lastError?.message}`
+    );
+  }
+
+  /**
    * Handles incoming chat messages and manages the response stream
    */
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // Apply sliding window to manage message history
+    await this.applySlidingWindow();
+
     // Get MCP tools safely (handles hot reload issues in development)
     let mcpTools = {};
     try {
@@ -537,28 +702,31 @@ export class Chat extends AIChatAgent<Env> {
 
     const sessionId = this.getConnectionId();
 
+    // Wrap streamText call with retry logic for context/rate limit errors
+    const result = await this.retryWithMessageTrimming(async () => {
+      return streamText({
+        system: systemPrompt,
+        messages: await convertToModelMessages(this.messages),
+        model,
+        tools: allTools,
+        providerOptions: {
+          langsmith: createLangSmithProviderOptions({
+            metadata: {
+              session_id: sessionId
+            }
+          })
+        },
+        // Type boundary: streamText expects specific tool types, but base class uses ToolSet
+        // This is safe because our tools satisfy ToolSet interface (verified by 'satisfies' in tools.ts)
+        onFinish: onFinish as unknown as StreamTextOnFinishCallback<
+          typeof allTools
+        >,
+        stopWhen: stepCountIs(10)
+      });
+    }, "streamText");
+
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
-        const result = streamText({
-          system: systemPrompt,
-          messages: await convertToModelMessages(this.messages),
-          model,
-          tools: allTools,
-          providerOptions: {
-            langsmith: createLangSmithProviderOptions({
-              metadata: {
-                session_id: sessionId
-              }
-            })
-          },
-          // Type boundary: streamText expects specific tool types, but base class uses ToolSet
-          // This is safe because our tools satisfy ToolSet interface (verified by 'satisfies' in tools.ts)
-          onFinish: onFinish as unknown as StreamTextOnFinishCallback<
-            typeof allTools
-          >,
-          stopWhen: stepCountIs(10)
-        });
-
         writer.merge(result.toUIMessageStream());
       }
     });

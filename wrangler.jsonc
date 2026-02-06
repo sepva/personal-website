@@ -54,7 +54,8 @@
 	"vars": {
 		"RATE_LIMIT_GLOBAL_PER_HOUR": "100",
 		"RATE_LIMIT_SESSION_PER_HOUR": "3",
-		"RATE_LIMIT_EMAIL_PER_HOUR": "3"
+		"RATE_LIMIT_EMAIL_PER_HOUR": "3",
+		"MAX_HISTORY_MESSAGES": "20"
 	}
 	/**
 	 * Smart Placement
