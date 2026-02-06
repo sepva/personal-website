@@ -33,7 +33,7 @@ const ContentItemSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
-  type: z.enum(["project", "blog", "academic", "work"]),
+  type: z.enum(["project", "blog", "academic", "work", "faq"]),
   tags: z
     .string()
     .transform((val) => {
