@@ -1,6 +1,8 @@
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
+import { tool } from 'ai';
+import { z } from 'zod/v3';
 import validationPrompt from '../instructions/input_validation_prompt.md?raw';
 
 interface ValidationResult {
@@ -8,8 +10,42 @@ interface ValidationResult {
   reason: string;
 }
 
-export const inputGuardrailMiddleware: LanguageModelV3Middleware = {
-  specificationVersion: 'v3',
+/**
+ * Type definition for the vector search function
+ */
+type VectorSearch = (query: string, topK?: number) => Promise<any[]>;
+
+/**
+ * Factory function to create input guardrail middleware with vector search capability
+ */
+export function createInputGuardrailMiddleware(
+  vectorSearch: VectorSearch
+): LanguageModelV3Middleware {
+  // Create vector search tool for validation agent
+  const vectorSearchTool = tool({
+    description: `Performs semantic vector search across documents about Seppe Vanswegenoven.
+    Use this to verify if a user's question is answerable based on available content.
+    If relevant results are found (especially with score > 0.5), the question is likely valid.`,
+    inputSchema: z.object({
+      query: z.string().describe("The search query to find relevant content"),
+      topK: z.number().optional().default(3).describe("Number of results to return (default: 3)")
+    }),
+    execute: async ({ query, topK }) => {
+      const results = await vectorSearch(query, topK);
+      return {
+        type: 'vector-search-results',
+        results: results.map((item: any) => ({
+          title: item.title,
+          description: item.description,
+          type: item.type,
+          relevanceNote: "Score > 0.5 suggests question is answerable and in scope"
+        }))
+      };
+    }
+  });
+
+  return {
+    specificationVersion: 'v3',
   
   wrapGenerate: async ({ doGenerate }) => {
     const result = await doGenerate();
@@ -28,7 +64,7 @@ export const inputGuardrailMiddleware: LanguageModelV3Middleware = {
     // Only validate if there are user messages
     if (conversationMessages.length > 0) {
       try {
-        // Make LLM validation call
+        // Make LLM validation call with vector search tool
         const validationResult = await generateText({
           model: openai('gpt-4o-mini'),
           messages: [
@@ -40,6 +76,9 @@ export const inputGuardrailMiddleware: LanguageModelV3Middleware = {
                 : JSON.stringify(msg.content)
             }))
           ],
+          tools: {
+            vectorSearch: vectorSearchTool
+          },
           temperature: 0.1,
         });
 
@@ -150,4 +189,5 @@ export const inputGuardrailMiddleware: LanguageModelV3Middleware = {
         ...rest,
     };
   }
-};
+  };
+}

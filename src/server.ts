@@ -18,13 +18,9 @@ import { z } from "zod";
 import { tools } from "./tools";
 import type { ContentItem } from "./shared";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
-import { inputGuardrailMiddleware } from "./middleware/inputGuardrail";
+import { createInputGuardrailMiddleware } from "./middleware/inputGuardrail";
 
 const { streamText } = wrapAISDK(ai);
-const model = ai.wrapLanguageModel({
-  model: openai("gpt-4o-2024-11-20"),
-  middleware: inputGuardrailMiddleware
-});
 
 /**
  * Zod schema for validating and parsing ContentItem from database rows
@@ -701,6 +697,16 @@ export class Chat extends AIChatAgent<Env> {
     };
 
     const sessionId = this.getConnectionId();
+
+    // Create model with input guardrail middleware that has access to vector search
+    const inputGuardrailMiddleware = createInputGuardrailMiddleware(
+      this.queryVectorDatabase.bind(this)
+    );
+    
+    const model = ai.wrapLanguageModel({
+      model: openai("gpt-4o-2024-11-20"),
+      middleware: inputGuardrailMiddleware
+    });
 
     // Wrap streamText call with retry logic for context/rate limit errors
     const result = await this.retryWithMessageTrimming(async () => {
