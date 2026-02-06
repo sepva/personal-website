@@ -1,6 +1,7 @@
 import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import type { Components } from "react-markdown";
 
 const markdownComponents: Components = {
@@ -64,6 +65,7 @@ export const MemoizedMarkdown = memo(
       <div className="markdown-body prose prose-neutral dark:prose-invert max-w-none">
         <ReactMarkdown 
           remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw]}
           components={markdownComponents}
         >
           {content}
