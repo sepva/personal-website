@@ -148,7 +148,7 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
    */
   const vectorSearchTool = tool({
     description: `Performs semantic vector search across a comprehensive database of documents containing detailed information about Seppe Vanswegenoven.
-    This includes text from his CV, project descriptions, academic work, and other portfolio content.
+    This includes text from his CV, project descriptions, academic work, and other portfolio content. Results often include images, screenshots, and demo links.
     
     WHEN TO USE:
     - User asks specific questions about Seppe's skills, experiences, or achievements
@@ -156,10 +156,12 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
     - When you need to find detailed information not immediately visible in overview components
     - For answering targeted questions that require searching through content
     - When exploring ambiguous topics that might span multiple categories
+    - When users ask to see images, screenshots, or visual examples of projects
     
     HOW IT WORKS:
     - Takes a natural language query and finds semantically similar content
     - Returns relevant document chunks with content and metadata
+    - Results may include image URLs, demo links, and screenshots - ALWAYS check for these and include them in your response
     - Can be called multiple times with different queries to gather comprehensive information
     
     PARAMETERS:
@@ -169,6 +171,7 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
       * Use 5-10 for broad exploratory queries or when you need comprehensive coverage
     
     AFTER CALLING:
+    - **Check results for images, screenshots, or demo links** - include these in your response using markdown
     - Synthesize the results into a natural, conversational answer
     - Cite specific achievements, projects, or experiences found in the results
     - If results are insufficient, you can call again with a refined query

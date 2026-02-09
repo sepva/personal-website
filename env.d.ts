@@ -7,6 +7,11 @@ declare namespace Cloudflare {
 	}
 	interface Env {
 		OPENAI_API_KEY: string;
+		OPENROUTER_API_KEY: string;
+		OPENROUTER_SITE_URL?: string;
+		OPENROUTER_SITE_NAME?: string;
+		OPENROUTER_MODELS: string;
+		OPENROUTER_GUARDRAIL_MODELS: string;
 		LANGSMITH_TRACING: string;
 		LANGSMITH_ENDPOINT: string;
 		LANGSMITH_API_KEY: string;
@@ -14,6 +19,7 @@ declare namespace Cloudflare {
 		RATE_LIMIT_GLOBAL_PER_HOUR?: string;
 		RATE_LIMIT_SESSION_PER_HOUR?: string;
 		RATE_LIMIT_EMAIL_PER_HOUR?: string;
+		MAX_HISTORY_MESSAGES?: string;
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
 		DB: D1Database;
 		VECTOR_INDEX: VectorizeIndex;
@@ -25,5 +31,5 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_API_KEY" | "LANGSMITH_TRACING" | "LANGSMITH_ENDPOINT" | "LANGSMITH_API_KEY" | "LANGSMITH_PROJECT">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "OPENAI_API_KEY" | "OPENROUTER_API_KEY" | "OPENROUTER_SITE_URL" | "OPENROUTER_SITE_NAME" | "OPENROUTER_MODELS" | "OPENROUTER_GUARDRAIL_MODELS" | "LANGSMITH_TRACING" | "LANGSMITH_ENDPOINT" | "LANGSMITH_API_KEY" | "LANGSMITH_PROJECT">> {}
 }

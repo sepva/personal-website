@@ -34,7 +34,7 @@ const markdownComponents: Components = {
   code: ({ children, className }) => {
     const isInline = !className?.includes('language-');
     return isInline ? (
-      <code className="bg-neutral-100 dark:bg-neutral-850 rounded px-1.5 py-0.5 text-sm">
+      <code className="bg-neutral-100 dark:bg-neutral-850 rounded px-1.5 py-0.5 text-sm break-words">
         {children}
       </code>
     ) : (

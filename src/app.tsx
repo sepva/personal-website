@@ -14,7 +14,10 @@ import { ChatInput } from "@/components/chat-input/ChatInput";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { AcademicOverviewPage } from "@/components/overview-page/AcademicOverviewPage";
 import { PersonalProjectsOverviewPage } from "./components/overview-page/PersonalProjectsOverviewPage";
-import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";import { ContactForm } from "./components/contact-form/ContactForm";type MessageType = 'bot' | 'user' | 'system';
+import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";import { ContactForm } from "./components/contact-form/ContactForm";
+import { Loader } from "./components/loader/Loader";
+
+type MessageType = 'bot' | 'user' | 'system';
 
 interface CustomMessage {
   id: string;
@@ -165,6 +168,23 @@ export default function Chat() {
     });
   });
 
+  // Add loading indicator when agent is processing (only before streaming starts)
+  const isLoading = status === "submitted" || status === "streaming";
+  // Check if there's any text content or tool outputs in the latest agent messages
+  const hasContent = agentMessages.length > 0 && 
+    agentMessages[agentMessages.length - 1]?.parts?.some(part => 
+      (part.type === "text" && part.text) || 
+      (part.type?.startsWith('tool-') && (part as any).state === 'output-available')
+    );
+  
+  if (isLoading && !hasContent && displayMessages[displayMessages.length - 1]?.id !== 'loading-indicator') {
+    displayMessages.push({
+      id: 'loading-indicator',
+      type: 'bot',
+      content: '' // Will be rendered as Loader component
+    });
+  }
+
   return (
     <div className="flex h-screen bg-[#0F1115]">
       <Sidebar onNewChat={handleNewChat} />
@@ -222,6 +242,18 @@ export default function Chat() {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <ContactForm data={message.data} />
+                  </ChatBubble>
+                );
+              }
+
+              // Show loading indicator for the loading message
+              if (message.id === 'loading-indicator') {
+                return (
+                  <ChatBubble key={message.id} type={message.type}>
+                    <div className="flex items-center gap-2">
+                      <Loader size={20} title="AI is thinking..." />
+                      <span className="text-[#9BA1B3] text-sm">Thinking...</span>
+                    </div>
                   </ChatBubble>
                 );
               }
