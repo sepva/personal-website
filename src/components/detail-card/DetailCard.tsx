@@ -1,5 +1,7 @@
-import { ExternalLink, MessageCircle, Calendar, Tag, X } from 'lucide-react';
+import { ExternalLink, Calendar, Tag, X, Share2, Check } from 'lucide-react';
+import { useState } from 'react';
 import { MemoizedMarkdown } from '../memoized-markdown';
+import { buildShareableURL, shareContent } from '../../lib/shareable-links';
 
 interface DetailCardProps {
   title: string;
@@ -8,6 +10,7 @@ interface DetailCardProps {
   tags?: string[];
   date?: string;
   link?: string;
+  shareable_link?: string;
   onBack?: () => void;
 }
 
@@ -18,8 +21,29 @@ export function DetailCard({
   tags,
   date,
   link,
+  shareable_link,
   onBack
 }: DetailCardProps) {
+  const [shareStatus, setShareStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  const handleShare = async () => {
+    if (!shareable_link) return;
+    
+    try {
+      const url = buildShareableURL(shareable_link);
+      await shareContent(url, title);
+      setShareStatus('success');
+      setTimeout(() => setShareStatus('idle'), 2000);
+    } catch (err) {
+      // If user cancelled, don't show error
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+      setShareStatus('error');
+      setTimeout(() => setShareStatus('idle'), 2000);
+    }
+  };
+
   return (
     <div className="bg-[#1C1F26] border border-[#2F323D] rounded-none md:rounded-[16px] md:p-[24px] md:shadow-[0_12px_24px_rgba(0,0,0,0.08)] md:max-w-[90%] relative h-full md:h-auto">
       {/* Sticky transparent header for mobile, absolute positioned button for desktop */}
@@ -68,6 +92,25 @@ export function DetailCard({
               <ExternalLink size={16} />
               <span>View Live</span>
             </a>
+          )}
+          {shareable_link && (
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-[8px] hover:text-[#5560FF] transition-colors"
+              aria-label="Share this content"
+            >
+              {shareStatus === 'success' ? (
+                <>
+                  <Check size={16} />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 size={16} />
+                  <span>Share</span>
+                </>
+              )}
+            </button>
           )}
         </div>
 

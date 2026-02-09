@@ -7,4 +7,5 @@ export interface ContentItem {
   type: 'project' | 'blog' | 'academic' | 'work' | 'faq';
   date?: string;
   fullContent?: string;
+  shareable_link?: string;
 }

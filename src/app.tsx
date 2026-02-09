@@ -13,9 +13,11 @@ import { ChatInput } from "@/components/chat-input/ChatInput";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { AcademicOverviewPage } from "@/components/overview-page/AcademicOverviewPage";
 import { PersonalProjectsOverviewPage } from "./components/overview-page/PersonalProjectsOverviewPage";
-import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";import { ContactForm } from "./components/contact-form/ContactForm";
+import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";
+import { ContactForm } from "./components/contact-form/ContactForm";
 import { Loader } from "./components/loader/Loader";
 import { RotateCcw } from "lucide-react";
+import { parseShareableLinkFromURL } from "./lib/shareable-links";
 
 type MessageType = 'bot' | 'user' | 'system';
 
@@ -61,6 +63,86 @@ export default function Chat() {
         data: {}
       }
     ]);
+  
+  const [shareableLinkLoading, setShareableLinkLoading] = useState(true);
+
+  // Check for shareable link on mount and initialize messages
+  useEffect(() => {
+    const initializeShareableLink = async () => {
+      const shareableLink = parseShareableLinkFromURL();
+      
+      if (!shareableLink) {
+        setShareableLinkLoading(false);
+        return;
+      }
+
+      try {
+        // Fetch content data from API
+        const response = await fetch(`/api/content?link=${encodeURIComponent(shareableLink)}`);
+        
+        if (!response.ok) {
+          console.error('Failed to fetch shareable content:', response.statusText);
+          setShareableLinkLoading(false);
+          return;
+        }
+
+        const result = await response.json() as {
+          contentItem: any;
+          allItems: any[];
+          dataType: string;
+          componentName: string;
+        };
+        const { contentItem, allItems, componentName } = result;
+
+        if (!contentItem) {
+          console.error('Content not found for shareable link:', shareableLink);
+          setShareableLinkLoading(false);
+          return;
+        }
+
+        // Build preprogrammed messages
+        const preprogrammedMessages: CustomMessage[] = [
+          // Intro message
+          {
+            id: '1',
+            type: 'bot',
+            content: "Hi! I'm the personal AI assistant of Seppe Vanswegenoven. Ask me anything about his academics, professional projects, or personal projects.",
+          },
+          // Category tiles
+          {
+            id: '2',
+            type: 'bot',
+            component: 'categories',
+            data: {}
+          },
+          // User message requesting the content
+          {
+            id: '3',
+            type: 'user',
+            content: `Show me ${contentItem.title}`
+          },
+          // Bot message with overview page component
+          {
+            id: '4',
+            type: 'bot',
+            component: componentName as any,
+            data: {
+              data: allItems,
+              initialEnlargedItemId: contentItem.id
+            }
+          }
+        ];
+
+        setCustomMessages(preprogrammedMessages);
+        setShareableLinkLoading(false);
+      } catch (error) {
+        console.error('Error initializing shareable link:', error);
+        setShareableLinkLoading(false);
+      }
+    };
+
+    initializeShareableLink();
+  }, []);
   
   // Function to scroll to bottom
   const scrollToBottom = () => {
@@ -170,7 +252,7 @@ export default function Chat() {
   });
 
   // Add loading indicator when agent is processing (only before streaming starts)
-  const isLoading = status === "submitted" || status === "streaming";
+  const isLoading = shareableLinkLoading || status === "submitted" || status === "streaming";
   // Check if there's any text content or tool outputs in the latest agent messages
   const hasContent = agentMessages.length > 0 && 
     agentMessages[agentMessages.length - 1]?.parts?.some(part => 
@@ -226,7 +308,10 @@ export default function Chat() {
               if (message.component === 'AcademicOverviewPage') {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
-                    <AcademicOverviewPage data={message.data || []} />
+                    <AcademicOverviewPage 
+                      data={message.data?.data || message.data || []} 
+                      initialEnlargedItemId={message.data?.initialEnlargedItemId}
+                    />
                   </ChatBubble>
                 );
               }
@@ -234,7 +319,10 @@ export default function Chat() {
               if (message.component === 'PersonalProjectsOverviewPage') {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
-                    <PersonalProjectsOverviewPage data={message.data || []} />
+                    <PersonalProjectsOverviewPage 
+                      data={message.data?.data || message.data || []} 
+                      initialEnlargedItemId={message.data?.initialEnlargedItemId}
+                    />
                   </ChatBubble>
                 );
               }
@@ -242,7 +330,10 @@ export default function Chat() {
               if (message.component === 'ProfessionalProjectsOverviewPage') {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
-                    <ProfessionalProjectsOverviewPage data={message.data || []} />
+                    <ProfessionalProjectsOverviewPage 
+                      data={message.data?.data || message.data || []} 
+                      initialEnlargedItemId={message.data?.initialEnlargedItemId}
+                    />
                   </ChatBubble>
                 );
               }

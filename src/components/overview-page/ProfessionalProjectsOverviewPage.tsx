@@ -1,18 +1,29 @@
 import { OverviewPage } from "./OverviewPage";
 import { DetailCard } from "../detail-card/DetailCard";
 import { Modal } from "../modal/Modal";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import type { ContentItem } from "@/shared";
 
 interface ProfessionalProjectsOverviewPageProps {
   data: ContentItem[];
+  initialEnlargedItemId?: string;
 }
 
-export function ProfessionalProjectsOverviewPage({ data }: ProfessionalProjectsOverviewPageProps) {
+export function ProfessionalProjectsOverviewPage({ data, initialEnlargedItemId }: ProfessionalProjectsOverviewPageProps) {
   const [activeFilter, setActiveFilter] = useState("all");
   const [enlargedItem, setEnlargedItem] = useState<any>(null);
   const isMobile = useIsMobile();
+
+  // Auto-open content item if initialEnlargedItemId is provided
+  useEffect(() => {
+    if (initialEnlargedItemId && data.length > 0) {
+      const item = data.find(item => item.id === initialEnlargedItemId);
+      if (item) {
+        setEnlargedItem(item);
+      }
+    }
+  }, [initialEnlargedItemId, data]);
 
   const handleItemClick = (item: any) => {
     setEnlargedItem(item);

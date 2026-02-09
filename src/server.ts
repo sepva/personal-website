@@ -42,7 +42,8 @@ const ContentItemSchema = z.object({
     .optional(),
   date: z.string().nullable().optional().transform(val => val ?? undefined),
   fullContent: z.string().nullable().optional().transform(val => val ?? undefined),
-  link: z.string().nullable().optional().transform(val => val ?? undefined)
+  link: z.string().nullable().optional().transform(val => val ?? undefined),
+  shareable_link: z.string().nullable().optional().transform(val => val ?? undefined)
 });
 
 /**
@@ -406,6 +407,65 @@ export class Chat extends AIChatAgent<Env> {
         };
       }
     }) || [];
+  }
+
+  /**
+   * Fetch content by shareable link
+   * Searches all content tables and returns the matching item plus all items of that type
+   */
+  async fetchContentByShareableLink(shareableLink: string): Promise<{
+    contentItem: ContentItem | null;
+    allItems: ContentItem[];
+    dataType: string;
+    componentName: string;
+  }> {
+    // Map of data types to search
+    const dataTypes = ['academic', 'work', 'projects'];
+    
+    for (const dataType of dataTypes) {
+      try {
+        // Query this data type for matching shareable_link
+        const { results } = await this.env.DB.prepare(
+          `SELECT * FROM ${dataType} WHERE shareable_link = ?`
+        )
+          .bind(shareableLink)
+          .all();
+
+        if (results && results.length > 0) {
+          // Found matching content item
+          const parsedResults = this.parseDBResults(results);
+          const contentItem = parsedResults[0];
+
+          // Fetch all items of this type for the overview page
+          const allItems = await this.fetchContentPageFromDB(dataType);
+
+          // Map data type to component name
+          const componentNameMap: Record<string, string> = {
+            'academic': 'AcademicOverviewPage',
+            'work': 'ProfessionalProjectsOverviewPage',
+            'projects': 'PersonalProjectsOverviewPage'
+          };
+
+          return {
+            contentItem,
+            allItems,
+            dataType,
+            componentName: componentNameMap[dataType]
+          };
+        }
+      } catch (error) {
+        console.warn(`Error searching ${dataType} for shareable_link:`, error);
+        continue;
+      }
+    }
+
+    // Not found in any table
+    return {
+      contentItem: null,
+      allItems: [],
+      dataType: '',
+      componentName: ''
+    };
   }
 
   /**
@@ -782,6 +842,52 @@ export class Chat extends AIChatAgent<Env> {
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
     const url = new URL(request.url);
+    
+    // Handle shareable link content fetching
+    if (url.pathname === '/api/content' && request.method === 'GET') {
+      const shareableLink = url.searchParams.get('link');
+      
+      if (!shareableLink) {
+        return new Response(
+          JSON.stringify({ error: "Missing 'link' query parameter" }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
+      try {
+        // Create a temporary Durable Object instance to access the database
+        // We use a deterministic ID so content can be fetched without a session
+        const id = env.Chat.idFromName('__content_fetcher__');
+        const chatStub = env.Chat.get(id) as any;
+        
+        // Call the method on the Durable Object
+        const result = await chatStub.fetchContentByShareableLink(shareableLink);
+
+        if (!result.contentItem) {
+          return new Response(
+            JSON.stringify({ error: "Content not found" }),
+            { status: 404, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify(result),
+          { 
+            status: 200,
+            headers: { 
+              'Content-Type': 'application/json',
+              'Cache-Control': 'public, max-age=300' // Cache for 5 minutes
+            }
+          }
+        );
+      } catch (error) {
+        console.error("Error fetching content by shareable link:", error);
+        return new Response(
+          JSON.stringify({ error: "Internal server error" }),
+          { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
     
     // Handle contact form submissions
     if (url.pathname === '/api/contact' && request.method === 'POST') {
