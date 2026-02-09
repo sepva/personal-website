@@ -5,9 +5,9 @@ interface CategoryTilesProps {
 }
 
 export const categories = [
-  { id: 'Academics', label: 'Academics', icon: GraduationCap, color: '#5560FF', prompt: 'What did you study?' },
-  { id: 'Professional Projects', label: 'Professional Projects', icon: BriefcaseBusiness, color: '#B8A7FF', prompt: 'What professional projects have you worked on?' },
-  { id: 'Personal Projects', label: 'Personal Projects', icon: SquareTerminal, color: '#A7FFE4', prompt: 'What personal projects are you proud of?' }
+  { id: 'Academics', label: 'Academics', icon: GraduationCap, color: '#5560FF', prompt: 'What did Seppe study?' },
+  { id: 'Professional Projects', label: 'Professional Projects', icon: BriefcaseBusiness, color: '#B8A7FF', prompt: 'What professional projects has Seppe worked on?' },
+  { id: 'Personal Projects', label: 'Personal Projects', icon: SquareTerminal, color: '#A7FFE4', prompt: 'What personal projects is Seppe proud of?' }
 ];
 
 export function CategoryTiles({ onSelect }: CategoryTilesProps) {
