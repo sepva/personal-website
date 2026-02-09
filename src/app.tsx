@@ -8,14 +8,14 @@ import type { UIMessage } from "@ai-sdk/react";
 import { ChatBubble } from "@/components/chat-bubble/ChatBubble";
 import { CategoryTiles, categories } from "@/components/category-tiles/CategoryTiles";
 import { SuggestionChips } from "@/components/suggestion-chips/SuggestionChips";
-import { Sidebar } from "@/components/sidebar/Sidebar";
-import { MobileMenu } from "@/components/menu-bar/MobileMenu";
+import { Header } from "@/components/header/Header";
 import { ChatInput } from "@/components/chat-input/ChatInput";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { AcademicOverviewPage } from "@/components/overview-page/AcademicOverviewPage";
 import { PersonalProjectsOverviewPage } from "./components/overview-page/PersonalProjectsOverviewPage";
 import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";import { ContactForm } from "./components/contact-form/ContactForm";
 import { Loader } from "./components/loader/Loader";
+import { RotateCcw } from "lucide-react";
 
 type MessageType = 'bot' | 'user' | 'system';
 
@@ -118,10 +118,11 @@ export default function Chat() {
     });
   };
 
-  // Handler to start a new chat
-  const handleNewChat = () => {
+  // Handler to refresh the chat
+  const handleRefresh = () => {
     clearHistory();
-    setCustomMessages(customMessages);
+    sessionStorage.removeItem('chat-session-id');
+    window.location.reload();
   };
 
   // Combine custom UI messages with agent messages for display
@@ -186,11 +187,19 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0F1115]">
-      <Sidebar onNewChat={handleNewChat} />
-      <MobileMenu onNewChat={handleNewChat} />
+    <div className="flex flex-col h-screen bg-[#0F1115]">
+      <Header 
+        name="Seppe Vanswegenoven"
+        photoUrl="/CV_picture.jpeg"
+        contactInfo={{
+          email: "seppe.vanswegenoven@skynet.be",
+          phone: "(+32) 04 77 25 90 19",
+          github: "sepva",
+          linkedin: "seppe-vanswegenoven-119151268"
+        }}
+      />
 
-      <div className="flex-1 flex flex-col h-screen">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* Chat Area */}
         <div className="flex-1 overflow-y-auto px-[16px] md:px-[24px] py-[24px] md:py-[32px]">
           <div className="max-w-[900px] mx-auto space-y-[16px]">
@@ -276,11 +285,20 @@ export default function Chat() {
 
         {/* Input Area */}
         <div className="border-t border-[#2F323D] bg-[#16181D] px-[16px] md:px-[24px] py-[16px]">
-          <div className="max-w-[900px] mx-auto">
-            <ChatInput
-              onSend={handleUserMessage}
-              disabled={status === "submitted" || status === "streaming"}
-            />
+          <div className="max-w-[900px] mx-auto flex items-end gap-3">
+            <button
+              onClick={handleRefresh}
+              className="p-2.5 rounded-lg bg-[#2F323D] hover:bg-[#3F424D] transition-colors text-[#9BA1B3] hover:text-white flex items-center justify-center shrink-0"
+              title="Start new chat"
+            >
+              <RotateCcw size={20} />
+            </button>
+            <div className="flex-1">
+              <ChatInput
+                onSend={handleUserMessage}
+                disabled={status === "submitted" || status === "streaming"}
+              />
+            </div>
           </div>
         </div>
       </div>
