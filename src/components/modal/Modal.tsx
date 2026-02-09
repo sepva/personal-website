@@ -1,6 +1,5 @@
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
-import useClickOutside from "@/hooks/useClickOutside";
 import { X } from "@phosphor-icons/react";
 
 import { useEffect, useRef } from "react";
@@ -12,6 +11,7 @@ type ModalProps = {
   clickOutsideToClose?: boolean;
   isOpen: boolean;
   onClose: () => void;
+  fullScreen?: boolean;
 };
 
 export const Modal = ({
@@ -19,13 +19,26 @@ export const Modal = ({
   children,
   clickOutsideToClose = false,
   isOpen,
-  onClose
+  onClose,
+  fullScreen = false
 }: ModalProps) => {
-  const modalRef = clickOutsideToClose
-    ? // biome-ignore lint/correctness/useHookAtTopLevel: todo
-      useClickOutside(onClose)
-    : // biome-ignore lint/correctness/useHookAtTopLevel: todo
-      useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Handle click outside
+  useEffect(() => {
+    if (!isOpen || !clickOutsideToClose) return;
+
+    const handleClick = (event: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener("click", handleClick);
+    return () => {
+      document.removeEventListener("click", handleClick);
+    };
+  }, [isOpen, clickOutsideToClose, onClose]);
 
   // Stop site overflow when modal is open
   useEffect(() => {
@@ -78,31 +91,44 @@ export const Modal = ({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose, modalRef.current]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed top-0 left-0 z-50 flex h-screen w-full items-center justify-center bg-transparent p-6">
+    <div className={cn(
+      "fixed top-0 left-0 z-50 flex h-screen w-full bg-transparent",
+      fullScreen ? "" : "items-center justify-center p-6"
+    )}>
       <div className="fade fixed top-0 left-0 h-full w-full bg-black/5 backdrop-blur-[2px]" />
 
-      <Card
-        className={cn("reveal reveal-sm relative z-50 max-w-md", className)}
-        ref={modalRef}
-        tabIndex={-1}
-      >
-        {children}
-
-        <Button
-          aria-label="Close Modal"
-          shape="square"
-          className="absolute top-2 right-2"
-          onClick={onClose}
-          variant="ghost"
+      {fullScreen ? (
+        <div
+          className={cn("relative z-50 h-full w-full overflow-y-auto", className)}
+          ref={modalRef}
+          tabIndex={-1}
         >
-          <X size={16} />
-        </Button>
-      </Card>
+          {children}
+        </div>
+      ) : (
+        <Card
+          className={cn("reveal reveal-sm relative z-50 max-w-md", className)}
+          ref={modalRef}
+          tabIndex={-1}
+        >
+          {children}
+
+          <Button
+            aria-label="Close Modal"
+            shape="square"
+            className="absolute top-2 right-2"
+            onClick={onClose}
+            variant="ghost"
+          >
+            <X size={16} />
+          </Button>
+        </Card>
+      )}
     </div>
   );
 };

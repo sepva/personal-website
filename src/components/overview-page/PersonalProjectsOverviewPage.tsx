@@ -1,6 +1,8 @@
 import { OverviewPage } from "./OverviewPage";
 import { DetailCard } from "../detail-card/DetailCard";
+import { Modal } from "../modal/Modal";
 import { useState } from "react";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import type { ContentItem } from "@/shared";
 
 interface PersonalProjectsOverviewPageProps {
@@ -10,14 +12,27 @@ interface PersonalProjectsOverviewPageProps {
 export function PersonalProjectsOverviewPage({ data }: PersonalProjectsOverviewPageProps) {
   const [activeFilter, setActiveFilter] = useState("all");
   const [enlargedItem, setEnlargedItem] = useState<any>(null);
+  const isMobile = useIsMobile();
 
   const handleItemClick = (item: any) => {
     setEnlargedItem(item);
   };
 
-    if (enlargedItem) {
-      return DetailCard({ ...enlargedItem, onBack: () => setEnlargedItem(null) });
-    }
+  const handleClose = () => setEnlargedItem(null);
+
+  // Mobile: Render DetailCard in full-screen Modal
+  if (enlargedItem && isMobile) {
+    return (
+      <Modal isOpen={true} onClose={handleClose} fullScreen={true}>
+        <DetailCard {...enlargedItem} onBack={handleClose} />
+      </Modal>
+    );
+  }
+
+  // Desktop: Render DetailCard inline (current behavior)
+  if (enlargedItem) {
+    return <DetailCard {...enlargedItem} onBack={handleClose} />;
+  }
 
   return (
     <div className="flex">
