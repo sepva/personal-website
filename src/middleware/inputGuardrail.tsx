@@ -1,5 +1,5 @@
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
-import { streamText } from 'ai';
+import { streamText, stepCountIs } from 'ai';
 import { tool } from 'ai';
 import { z } from 'zod/v3';
 import validationPrompt from '../instructions/input_validation_prompt.md?raw';
@@ -45,6 +45,18 @@ export function createInputGuardrailMiddleware(
     }
   });
 
+  // Create validation result tool to enforce structured output
+  const reportValidationTool = tool({
+    description: `Report the final validation decision. You MUST call this tool with your decision.`,
+    inputSchema: z.object({
+      allowed: z.boolean().describe("Whether the user's question should be allowed (true) or rejected (false)"),
+      reason: z.string().describe("Detailed explanation of why the question was allowed or rejected")
+    }),
+    execute: async ({ allowed, reason }) => {
+      return { allowed, reason };
+    }
+  });
+
   return {
     specificationVersion: 'v3',
   
@@ -82,28 +94,37 @@ export function createInputGuardrailMiddleware(
             }))
           ],
           tools: {
-            vectorSearch: vectorSearchTool
+            vectorSearch: vectorSearchTool,
+            reportValidation: reportValidationTool
           },
+          toolChoice: 'auto', // Use 'auto' for compatibility with free models
+          stopWhen: stepCountIs(5), // Allow up to 5 steps for validation with tools
           temperature: 0.1,
         });
-
-        // Consume the full stream to get the final text
-        let validationText = '';
-        for await (const chunk of validationStream.textStream) {
-          validationText += chunk;
+        
+        let validation: ValidationResult | null = null;
+        const toolCalls: any[] = [];
+        
+        // Consume the stream and collect tool calls
+        for await (const chunk of validationStream.fullStream) {
+          if (chunk.type === 'tool-call') {
+            toolCalls.push(chunk);
+          }
+          
+          // Extract validation from reportValidation tool result
+          if (chunk.type === 'tool-result' && chunk.toolName === 'reportValidation') {
+            // The execute function returns the validation object directly
+            const result = (chunk as any).result as { allowed: boolean; reason: string };
+            validation = {
+              allowed: result.allowed,
+              reason: result.reason
+            };
+          }
         }
 
-        // Parse the JSON response
-        let validation: ValidationResult;
-        try {
-          // Extract JSON from response (in case there's markdown formatting)
-          const jsonMatch = validationText.match(/\{[\s\S]*\}/);
-          const jsonText = jsonMatch ? jsonMatch[0] : validationText;
-          validation = JSON.parse(jsonText);
-        } catch (parseError) {
-          console.error('Failed to parse validation response:', validationText);
-          // If parsing fails, allow the request to proceed (fail open)
-          validation = { allowed: true, reason: 'Validation parsing failed' };
+        // If no validation was reported via tool, fail open
+        if (!validation) {
+          validation = { allowed: true, reason: 'No validation result provided' };
         }
 
         // If not allowed, log and return predefined response stream
@@ -119,7 +140,7 @@ export function createInputGuardrailMiddleware(
           });
 
           // Create predefined error message
-          const errorMessage = `I appreciate your interest, but this question is outside the scope of what I can help with. I'm here to discuss Seppe's background, projects, and professional experience. ${validation.reason}`;
+          const errorMessage = `I appreciate your interest, but this question is outside the scope of what I can help with. I'm here to discuss Seppe's background, projects, and professional experience.${validation.reason && validation.reason !== 'No reason provided' ? ` ${validation.reason}` : ''}`;
           
           // Create a synthetic stream using the same mechanism as successful responses
           const textBlockId = 'error-block-0';

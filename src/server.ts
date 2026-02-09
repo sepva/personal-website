@@ -1,13 +1,15 @@
 import { routeAgentRequest } from "agents";
 import { AIChatAgent } from "@cloudflare/ai-chat";
+import * as ai from "ai";
 import {
   type StreamTextOnFinishCallback,
   createUIMessageStream,
   convertToModelMessages,
   createUIMessageStreamResponse,
-  type ToolSet
+  type ToolSet,
+  wrapLanguageModel,
+  stepCountIs
 } from "ai";
-import * as ai from "ai";
 import {
   wrapAISDK,
   createLangSmithProviderOptions
@@ -18,8 +20,6 @@ import type { ContentItem } from "./shared";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
 import { createInputGuardrailMiddleware } from "./middleware/inputGuardrail";
 import { createOpenRouterProvider } from "./lib/openrouter";
-
-const { streamText } = wrapAISDK(ai);
 
 /**
  * Zod schema for validating and parsing ContentItem from database rows
@@ -588,7 +588,11 @@ export class Chat extends AIChatAgent<Env> {
         lastError = error instanceof Error ? error : new Error(String(error));
         
         // Log the full error for debugging
-        console.error(`[Retry] Error caught:`, error);
+        console.error(`[Retry] ===== ERROR CAUGHT =====`);
+        console.error(`[Retry] Error type: ${error?.constructor?.name || typeof error}`);
+        console.error(`[Retry] Error message: ${lastError.message}`);
+        console.error(`[Retry] Full error:`, JSON.stringify(error, null, 2));
+        console.error(`[Retry] Stack trace:`, lastError.stack);
         
         // Check if error is recoverable (context length or rate limit)
         // Handle both Error objects and structured error objects from OpenAI
@@ -677,13 +681,11 @@ export class Chat extends AIChatAgent<Env> {
   ) {
     // Apply sliding window to manage message history
     await this.applySlidingWindow();
-
     // Get MCP tools safely (handles hot reload issues in development)
     let mcpTools = {};
     try {
       mcpTools = this.mcp.getAITools();
     } catch (error) {
-      console.warn('MCP tools not available (likely due to hot reload):', error instanceof Error ? error.message : error);
       // Continue without MCP tools - they'll be available after a full reload
     }
 
@@ -703,19 +705,23 @@ export class Chat extends AIChatAgent<Env> {
       this.env
     );
     
+    // Wrap AI SDK with LangSmith for full tracing
+    const { streamText } = wrapAISDK(ai);
+    
     // Create OpenRouter provider with model fallback chain
     const { provider: openrouter, primaryModel } = createOpenRouterProvider(this.env, this.env.OPENROUTER_MODELS);
     
-    const model = ai.wrapLanguageModel({
+    // Wrap model with input guardrail middleware
+    const model = wrapLanguageModel({
       model: openrouter.chat(primaryModel),
       middleware: inputGuardrailMiddleware
     });
 
-    // Wrap onFinish callback to track model usage
+    // Wrap onFinish callback to track model usage 
     const wrappedOnFinish: StreamTextOnFinishCallback<ToolSet> = async (event) => {
       // Log which model was actually used by OpenRouter
       const modelUsed = event.response?.modelId || 'unknown';
-      console.log(`[OpenRouter] Model used: ${modelUsed}`);
+      console.log(`[OpenRouter] Model used: ${modelUsed}`);     
       
       // Log usage if available
       if (event.usage) {
@@ -730,11 +736,14 @@ export class Chat extends AIChatAgent<Env> {
 
     // Wrap streamText call with retry logic for context/rate limit errors
     const result = await this.retryWithMessageTrimming(async () => {
-      return streamText({
+      const modelMessages = await convertToModelMessages(this.messages);
+      
+      const streamTextConfig: any = {
         system: systemPrompt,
-        messages: await convertToModelMessages(this.messages),
+        messages: modelMessages,
         model,
         tools: allTools,
+        stopWhen: stepCountIs(5), // Stop after 5 steps (enables multi-step tool calling)
         providerOptions: {
           langsmith: createLangSmithProviderOptions({
             metadata: {
@@ -747,16 +756,23 @@ export class Chat extends AIChatAgent<Env> {
         onFinish: wrappedOnFinish as unknown as StreamTextOnFinishCallback<
           typeof allTools
         >
-      });
+      };
+      return streamText(streamTextConfig);
     }, "streamText");
-
+    
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
-        writer.merge(result.toUIMessageStream());
+        try {
+          const uiStream = result.toUIMessageStream();
+          writer.merge(uiStream);
+        } catch (error) {
+          throw error;
+        }
       }
     });
-
-    return createUIMessageStreamResponse({ stream });
+    
+    const response = createUIMessageStreamResponse({ stream });
+    return response;
   }
 }
 
