@@ -16,68 +16,39 @@ import {
 } from "langsmith/experimental/vercel";
 import { z } from "zod";
 import { tools } from "./tools";
-import type { ContentItem } from "./shared";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
 import { createInputGuardrailMiddleware } from "./middleware/inputGuardrail";
 import { createOpenRouterProvider } from "./lib/openrouter";
-
-/**
- * Zod schema for validating and parsing ContentItem from database rows
- */
-const ContentItemSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string(),
-  type: z.enum(["project", "blog", "academic", "work", "faq"]),
-  tags: z
-    .string()
-    .transform((val) => {
-      try {
-        return typeof val === "string" ? JSON.parse(val) : val;
-      } catch {
-        return [];
-      }
-    })
-    .pipe(z.array(z.string()))
-    .optional(),
-  date: z.string().nullable().optional().transform(val => val ?? undefined),
-  fullContent: z.string().nullable().optional().transform(val => val ?? undefined),
-  link: z.string().nullable().optional().transform(val => val ?? undefined),
-  shareable_link: z.string().nullable().optional().transform(val => val ?? undefined)
-});
+import { ContentRepository } from "./repositories/ContentRepository";
+import { ContactService } from "./services/ContactService";
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
 export class Chat extends AIChatAgent<Env> {
-  // In-memory cache for database results during the session with TTL
-  private contentCache: Map<string, { data: ContentItem[]; timestamp: number }> = new Map();
-  // Cache TTL in milliseconds (5 minutes)
-  private readonly CACHE_TTL_MS = 5 * 60 * 1000;
-  // Max number of cache entries to prevent memory leaks
-  private readonly MAX_CACHE_ENTRIES = 100;
-  // Retry configuration for database operations
-  private readonly RETRY_CONFIG = {
-    maxAttempts: 3,
-    initialDelayMs: 100,
-    maxDelayMs: 2000,
-    backoffMultiplier: 2
-  };
-  // Connection pooling and health check configuration
-  private readonly CONNECTION_HEALTH_CHECK_INTERVAL_MS = 30 * 1000; // 30 seconds
-  private readonly CONNECTION_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-  private lastConnectionHealthCheck: number = 0;
-  private lastDBActivity: number = Date.now();
-  private isConnectionValid: boolean = true;
-
-  // Rate limiting for contact form submissions (timestamps of submissions)
-  private contactSubmissions: number[] = [];
+  // Content repository for database operations
+  private contentRepository!: ContentRepository;
+  // Contact service for handling form submissions with rate limiting
+  private contactService!: ContactService;
 
   /**
    * Called when a WebSocket connection is established
    * Captures the connection ID for session tracking and initializes tables
    */
   async onConnect(connection: any) {
+    // Initialize content repository
+    this.contentRepository = new ContentRepository(
+      this.env.DB,
+      this.env.AI,
+      this.env.VECTOR_INDEX
+    );
+
+    // Initialize contact service
+    this.contactService = new ContactService(
+      this.env.DB,
+      this.env
+    );
+
     // Detect reconnection - log but preserve history state
     if (this.messages.length > 0) {
       console.log(`[Connection] Reconnection detected - ${this.messages.length} messages in history`);
@@ -115,125 +86,6 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   /**
-   * Execute a function with exponential backoff retry logic
-   * Handles transient failures common with remote database connections
-   */
-  private async withRetry<T>(
-    fn: () => Promise<T>,
-    operationName: string
-  ): Promise<T> {
-    let lastError: Error | null = null;
-    let delay = this.RETRY_CONFIG.initialDelayMs;
-
-    for (let attempt = 1; attempt <= this.RETRY_CONFIG.maxAttempts; attempt++) {
-      try {
-        console.log(`Executing ${operationName} (attempt ${attempt}/${this.RETRY_CONFIG.maxAttempts})`);
-        return await fn();
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        console.warn(
-          `${operationName} failed on attempt ${attempt}: ${lastError.message}`,
-          { delay, remainingAttempts: this.RETRY_CONFIG.maxAttempts - attempt }
-        );
-
-        if (attempt < this.RETRY_CONFIG.maxAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          delay = Math.min(delay * this.RETRY_CONFIG.backoffMultiplier, this.RETRY_CONFIG.maxDelayMs);
-        }
-      }
-    }
-
-    throw new Error(
-      `${operationName} failed after ${this.RETRY_CONFIG.maxAttempts} attempts: ${lastError?.message}`
-    );
-  }
-
-  /**
-   * Clear expired cache entries to prevent memory leaks
-   */
-  private clearExpiredCache(): void {
-    const now = Date.now();
-    let clearedCount = 0;
-
-    for (const [key, value] of this.contentCache.entries()) {
-      if (now - value.timestamp > this.CACHE_TTL_MS) {
-        this.contentCache.delete(key);
-        clearedCount++;
-      }
-    }
-
-    if (clearedCount > 0) {
-      console.log(`Cleared ${clearedCount} expired cache entries`);
-    }
-  }
-
-  /**
-   * Validate database connection by executing a simple health check query
-   * Returns true if connection is healthy, false otherwise
-   */
-  private async validateConnection(): Promise<boolean> {
-    try {
-      // Execute a minimal query to test connection validity
-      await this.env.DB.prepare(
-        "SELECT 1 as health_check"
-      ).all();
-      
-      this.isConnectionValid = true;
-      this.lastConnectionHealthCheck = Date.now();
-      console.log("Database connection validation successful");
-      return true;
-    } catch (error) {
-      this.isConnectionValid = false;
-      console.warn(
-        "Database connection validation failed:",
-        error instanceof Error ? error.message : String(error)
-      );
-      return false;
-    }
-  }
-
-  /**
-   * Perform connection health check if needed (based on interval or idle timeout)
-   * Proactively validates connection before executing queries
-   */
-  private async ensureConnectionHealth(): Promise<void> {
-    const now = Date.now();
-    const timeSinceLastCheck = now - this.lastConnectionHealthCheck;
-    const timeSinceLastActivity = now - this.lastDBActivity;
-
-    // Check if connection has been idle too long or if health check interval has passed
-    if (
-      timeSinceLastCheck > this.CONNECTION_HEALTH_CHECK_INTERVAL_MS ||
-      timeSinceLastActivity > this.CONNECTION_IDLE_TIMEOUT_MS ||
-      !this.isConnectionValid
-    ) {
-      console.log("Connection health check needed - validating...");
-      await this.validateConnection();
-    }
-  }
-
-  /**
-   * Execute database query with connection validation and retry logic
-   * Ensures connection is healthy before executing, with automatic reconnection on failure
-   */
-  private async executeDBQuery<T>(
-    fn: () => Promise<T>,
-    operationName: string
-  ): Promise<T> {
-    // Validate connection before attempting query
-    await this.ensureConnectionHealth();
-
-    // Execute with retry logic
-    const result = await this.withRetry(async () => {
-      // Update activity timestamp
-      this.lastDBActivity = Date.now();
-      return fn();
-    }, operationName);
-
-    return result;
-  }
-
-  /**
    * Get the connection ID from the current WebSocket context
    * This works even after hibernation by retrieving from attachment
    */
@@ -253,321 +105,38 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   /**
-   * Query the vector database for relevant documents with retry logic
+   * Fetch content by shareable link (delegated to ContentRepository)
+   * This method is called via Durable Object RPC from the fetch handler
    */
-  async queryVectorDatabase(
-    query: string,
-    topK: number = 3
-  ): Promise<ContentItem[]> {
-    return this.executeDBQuery(async () => {
-      // Generate embedding for the query
-      const queryEmbedding = await this.env.AI.run("@cf/baai/bge-base-en-v1.5", {
-        text: query
-      });
-
-      // Extract vector from embedding response
-      let queryVector: number[];
-      if (Array.isArray(queryEmbedding)) {
-        queryVector = queryEmbedding;
-      } else if ((queryEmbedding as any).data) {
-        const data = (queryEmbedding as any).data;
-        // If data is a nested array, get the first element; otherwise use it directly
-        queryVector = Array.isArray(data[0]) ? data[0] : data;
-      } else {
-        queryVector = queryEmbedding as any;
-      }
-      
-      if (!queryVector) {
-        throw new Error("Failed to generate query vector embedding");
-      }
-
-      // Query the vector index with metadata
-      const searchResults = await this.env.VECTOR_INDEX.query(queryVector, {
-        topK: topK,
-        returnMetadata: "all"
-      });
-
-      const contentItems: ContentItem[] = [];
-      for (const result of searchResults.matches) {
-        const dataType = result.metadata?.data_type as string;
-        
-        if (!dataType) continue;
-
-        try {
-          const { results } = await this.env.DB.prepare(
-            `SELECT * FROM ${dataType} WHERE id = ?`
-          )
-            .bind(result.id)
-            .all();
-
-          contentItems.push(...this.parseDBResults(results));
-        } catch (error) {
-          console.warn(
-            `Failed to fetch record ${result.id} from ${dataType}:`,
-            error instanceof Error ? error.message : String(error)
-          );
-          // Skip failed records but continue processing
-          continue;
-        }
-      }
-      return contentItems;
-    }, `queryVectorDatabase(${query.slice(0, 50)})`);
-  }
-
-  /**
-   * Fetch content pages from SQLite database with caching and retry logic
-   */
-  async fetchContentPageFromDB(
-    dataType: string,
-    id?: string
-  ): Promise<ContentItem[]> {
-    const cacheKey = `${dataType}${id ? ":" + id : ""}`;
-
-    // Clear expired cache periodically to prevent memory leaks
-    this.clearExpiredCache();
-
-    // Check cache first - verify it hasn't expired
-    if (this.contentCache.has(cacheKey)) {
-      const cached = this.contentCache.get(cacheKey)!;
-      const age = Date.now() - cached.timestamp;
-      if (age < this.CACHE_TTL_MS) {
-        console.log(`Cache hit for ${cacheKey} (age: ${age}ms)`);
-        return cached.data;
-      } else {
-        console.log(`Cache expired for ${cacheKey} (age: ${age}ms), removing`);
-        this.contentCache.delete(cacheKey);
-      }
-    }
-
-    // Cache miss - fetch from database with connection validation and retry logic
-    console.log(`Cache miss for ${cacheKey}, fetching from DB`);
-
-    try {
-      const result = await this.executeDBQuery(async () => {
-        let query = `SELECT * FROM ${dataType}`;
-        const params: string[] = [];
-
-        if (id) {
-          query += " WHERE id = ?";
-          params.push(id);
-        }
-
-        const stmt = this.env.DB.prepare(query);
-        const { results } =
-          params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
-
-        return results;
-      }, `fetchContentPageFromDB(${dataType}${id ? ":" + id : ""})`);
-
-      // Parse and validate JSON fields using Zod
-      const parsedResults = this.parseDBResults(result);
-
-      // Enforce max cache size by removing oldest entries if necessary
-      if (this.contentCache.size >= this.MAX_CACHE_ENTRIES) {
-        let oldestKey: string | null = null;
-        let oldestTimestamp = Infinity;
-        
-        for (const [key, value] of this.contentCache.entries()) {
-          if (value.timestamp < oldestTimestamp) {
-            oldestTimestamp = value.timestamp;
-            oldestKey = key;
-          }
-        }
-        
-        if (oldestKey) {
-          this.contentCache.delete(oldestKey);
-          console.log(`Evicted oldest cache entry (${oldestKey}) to respect max cache size`);
-        }
-      }
-
-      // Store in cache with timestamp
-      this.contentCache.set(cacheKey, {
-        data: parsedResults,
-        timestamp: Date.now()
-      });
-
-      return parsedResults;
-    } catch (error) {
-      console.error(
-        `Failed to fetch ${dataType} from database after retries:`,
-        error instanceof Error ? error.message : String(error)
+  async fetchContentByShareableLink(shareableLink: string) {
+    // Ensure repository is initialized (for RPC calls outside WebSocket context)
+    if (!this.contentRepository) {
+      this.contentRepository = new ContentRepository(
+        this.env.DB,
+        this.env.AI,
+        this.env.VECTOR_INDEX
       );
-      return [];
     }
-  }
-
-  parseDBResults(results: any[]): ContentItem[] {
-    return results.map((row: any) => {
-      try {
-        return ContentItemSchema.parse(row);
-      } catch (error) {
-        console.error(`Failed to parse content item ${row.id}:`, error);
-        // Return a minimal valid item as fallback
-        return {
-          id: row.id || "unknown",
-          title: row.title || "Untitled",
-          description: row.description || "",
-          type: row.type || "blog"
-        };
-      }
-    }) || [];
+    return this.contentRepository.fetchContentByShareableLink(shareableLink);
   }
 
   /**
-   * Fetch content by shareable link
-   * Searches all content tables and returns the matching item plus all items of that type
+   * Save a contact message (delegated to ContactService)
+   * This method is called from tools.ts via RPC
    */
-  async fetchContentByShareableLink(shareableLink: string): Promise<{
-    contentItem: ContentItem | null;
-    allItems: ContentItem[];
-    dataType: string;
-    componentName: string;
-  }> {
-    // Map of data types to search
-    const dataTypes = ['academic', 'work', 'projects'];
-    
-    for (const dataType of dataTypes) {
-      try {
-        // Query this data type for matching shareable_link
-        const { results } = await this.env.DB.prepare(
-          `SELECT * FROM ${dataType} WHERE shareable_link = ?`
-        )
-          .bind(shareableLink)
-          .all();
-
-        if (results && results.length > 0) {
-          // Found matching content item
-          const parsedResults = this.parseDBResults(results);
-          const contentItem = parsedResults[0];
-
-          // Fetch all items of this type for the overview page
-          const allItems = await this.fetchContentPageFromDB(dataType);
-
-          // Map data type to component name
-          const componentNameMap: Record<string, string> = {
-            'academic': 'AcademicOverviewPage',
-            'work': 'ProfessionalProjectsOverviewPage',
-            'projects': 'PersonalProjectsOverviewPage'
-          };
-
-          return {
-            contentItem,
-            allItems,
-            dataType,
-            componentName: componentNameMap[dataType]
-          };
-        }
-      } catch (error) {
-        console.warn(`Error searching ${dataType} for shareable_link:`, error);
-        continue;
-      }
+  async saveContactMessage(
+    email: string,
+    name: string,
+    message: string
+  ): Promise<{ success: boolean; error?: string }> {
+    // Ensure service is initialized (for RPC calls outside WebSocket context)
+    if (!this.contactService) {
+      this.contactService = new ContactService(
+        this.env.DB,
+        this.env
+      );
     }
-
-    // Not found in any table
-    return {
-      contentItem: null,
-      allItems: [],
-      dataType: '',
-      componentName: ''
-    };
-  }
-
-  /**
-   * Save a contact message to the database with rate limiting
-   * Checks three levels (configurable via environment variables):
-   * 1. Global rate limit: RATE_LIMIT_GLOBAL_PER_HOUR (default: 100) submissions per hour
-   * 2. Session-based rate limit: RATE_LIMIT_SESSION_PER_HOUR (default: 3) per hour
-   * 3. Email-based rate limit: RATE_LIMIT_EMAIL_PER_HOUR (default: 3) per hour per email
-   */
-  async saveContactMessage(email: string, name: string, message: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      // Clean up old submissions from rate limit tracking (older than 1 hour)
-      const oneHourAgo = Date.now() - (60 * 60 * 1000);
-      this.contactSubmissions = this.contactSubmissions.filter(timestamp => timestamp > oneHourAgo);
-
-      console.log(`Current session submissions in last hour: ${this.contactSubmissions.length}`);
-
-      // Get rate limit values from environment variables with defaults
-      const globalLimit = Number.parseInt(this.env.RATE_LIMIT_GLOBAL_PER_HOUR || "100", 10);
-      const sessionLimit = Number.parseInt(this.env.RATE_LIMIT_SESSION_PER_HOUR || "3", 10);
-      const emailLimit = Number.parseInt(this.env.RATE_LIMIT_EMAIL_PER_HOUR || "3", 10);
-
-      // Check global rate limit (across all sessions and emails)
-      const globalRateLimitResult = await this.executeDBQuery(async () => {
-        const oneHourAgoISO = new Date(oneHourAgo).toISOString();
-        const { results } = await this.env.DB.prepare(
-          "SELECT COUNT(*) as count FROM contact_messages WHERE timestamp > ?"
-        )
-          .bind(oneHourAgoISO)
-          .all();
-        
-        return results[0] as { count: number };
-      }, "checkGlobalRateLimit");
-
-      if (globalRateLimitResult.count >= globalLimit) {
-        console.warn(`Global rate limit reached: ${globalRateLimitResult.count} submissions in last hour`);
-        return {
-          success: false,
-          error: "Service is currently experiencing high traffic. Please try again later."
-        };
-      }
-
-      console.log(`Global submissions in last hour: ${globalRateLimitResult.count}/${globalLimit}`);
-
-      // Check session-based rate limit
-      if (this.contactSubmissions.length >= sessionLimit) {
-        const oldestSubmission = Math.min(...this.contactSubmissions);
-        const minutesUntilAvailable = Math.ceil((oldestSubmission + (60 * 60 * 1000) - Date.now()) / (60 * 1000));
-        return {
-          success: false,
-          error: `Rate limit reached. Please try again in ${minutesUntilAvailable} minute${minutesUntilAvailable !== 1 ? 's' : ''}.`
-        };
-      }
-
-      // Check email-based rate limit
-      const emailRateLimitResult = await this.executeDBQuery(async () => {
-        const oneHourAgoISO = new Date(oneHourAgo).toISOString();
-        const { results } = await this.env.DB.prepare(
-          "SELECT COUNT(*) as count FROM contact_messages WHERE email = ? AND timestamp > ?"
-        )
-          .bind(email, oneHourAgoISO)
-          .all();
-        
-        return results[0] as { count: number };
-      }, "checkEmailRateLimit");
-
-      if (emailRateLimitResult.count >= emailLimit) {
-        return {
-          success: false,
-          error: "Rate limit reached. Please try again later."
-        };
-      }
-
-      // Generate ID and timestamp
-      const id = crypto.randomUUID();
-      const timestamp = new Date().toISOString();
-
-      // Insert into database
-      await this.executeDBQuery(async () => {
-        await this.env.DB.prepare(
-          "INSERT INTO contact_messages (id, email, name, message, timestamp) VALUES (?, ?, ?, ?, ?)"
-        )
-          .bind(id, email, name, message, timestamp)
-          .run();
-      }, "insertContactMessage");
-
-      // Add to session rate limit tracking
-      this.contactSubmissions.push(Date.now());
-
-      console.log(`Contact message saved: ${id} from ${email}`);
-      return { success: true };
-    } catch (error) {
-      console.error("Failed to save contact message:", error);
-      return {
-        success: false,
-        error: "Failed to save message. Please try again later."
-      };
-    }
+    return this.contactService.saveContactMessage(email, name, message);
   }
 
   /**
@@ -748,6 +317,21 @@ export class Chat extends AIChatAgent<Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // Ensure repositories/services are initialized (in case onConnect wasn't called)
+    if (!this.contentRepository) {
+      this.contentRepository = new ContentRepository(
+        this.env.DB,
+        this.env.AI,
+        this.env.VECTOR_INDEX
+      );
+    }
+    if (!this.contactService) {
+      this.contactService = new ContactService(
+        this.env.DB,
+        this.env
+      );
+    }
+
     // Check for initialization message with history payload and inject history
     if (this.messages.length > 0) {
       const initMessage = this.messages.find((msg: any) => 
@@ -791,8 +375,8 @@ export class Chat extends AIChatAgent<Env> {
 
     const allTools = {
       ...tools(
-        this.fetchContentPageFromDB.bind(this),
-        this.queryVectorDatabase.bind(this)
+        this.contentRepository.fetchContentByType.bind(this.contentRepository),
+        this.contentRepository.queryVectorDatabase.bind(this.contentRepository)
       ),
       ...mcpTools
     };
@@ -801,7 +385,7 @@ export class Chat extends AIChatAgent<Env> {
 
     // Create model with input guardrail middleware that has access to vector search
     const inputGuardrailMiddleware = createInputGuardrailMiddleware(
-      this.queryVectorDatabase.bind(this),
+      this.contentRepository.queryVectorDatabase.bind(this.contentRepository),
       this.env
     );
     

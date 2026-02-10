@@ -4,7 +4,7 @@ interface ContentTileProps {
   title: string;
   description: string;
   tags?: string[];
-  type: 'project' | 'blog' | 'academic' | 'work';
+  type: 'project' | 'blog' | 'academic' | 'work' | 'faq';
   date?: string;
   onClick: () => void;
 }
