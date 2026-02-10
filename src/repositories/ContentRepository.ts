@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ContentItem } from "../shared";
+import { DATA_TYPE_TO_COMPONENT } from "@/constants";
 
 /**
  * Zod schema for validating and parsing ContentItem from database rows
@@ -369,18 +370,11 @@ export class ContentRepository {
           // Fetch all items of this type for the overview page
           const allItems = await this.fetchContentByType(dataType);
 
-          // Map data type to component name
-          const componentNameMap: Record<string, string> = {
-            'academic': 'AcademicOverviewPage',
-            'work': 'ProfessionalProjectsOverviewPage',
-            'projects': 'PersonalProjectsOverviewPage'
-          };
-
           return {
             contentItem,
             allItems,
             dataType,
-            componentName: componentNameMap[dataType]
+            componentName: DATA_TYPE_TO_COMPONENT[dataType]
           };
         }
       } catch (error) {

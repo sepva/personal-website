@@ -4,6 +4,7 @@
  */
 import { tool, type ToolSet } from "ai";
 import { z } from "zod/v3";
+import { COMPONENT_NAMES } from "@/constants";
 
 /**
  * Type definition for the fetch content function
@@ -55,7 +56,7 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
       return {
         type: 'react-component',
         data,
-        componentName: 'AcademicOverviewPage',
+        componentName: COMPONENT_NAMES.ACADEMIC_OVERVIEW,
         message: message
       };
     }
@@ -96,7 +97,7 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
       return {
         type: 'react-component',
         data,
-        componentName: 'ProfessionalProjectsOverviewPage',
+        componentName: COMPONENT_NAMES.PROFESSIONAL_PROJECTS_OVERVIEW,
         message: message
       };
     }
@@ -137,7 +138,7 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
       return {
         type: 'react-component',
         data,
-        componentName: 'PersonalProjectsOverviewPage',
+        componentName: COMPONENT_NAMES.PERSONAL_PROJECTS_OVERVIEW,
         message: message
       };
     }
@@ -229,7 +230,7 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
       return {
         type: 'react-component',
         data: {},
-        componentName: 'ContactForm',
+        componentName: COMPONENT_NAMES.CONTACT_FORM,
         message: message
       };
     }

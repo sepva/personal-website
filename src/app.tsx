@@ -14,6 +14,7 @@ import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { AcademicOverviewPage } from "@/components/overview-page/AcademicOverviewPage";
 import { PersonalProjectsOverviewPage } from "./components/overview-page/PersonalProjectsOverviewPage";
 import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";
+import { COMPONENT_NAMES } from "@/constants";
 import { ContactForm } from "./components/contact-form/ContactForm";
 import { Loader } from "./components/loader/Loader";
 import { RotateCcw } from "lucide-react";
@@ -25,7 +26,7 @@ interface CustomMessage {
   id: string;
   type: MessageType;
   content?: string;
-  component?: 'categories' | 'suggestions' | 'AcademicOverviewPage' | 'PersonalProjectsOverviewPage' | 'ProfessionalProjectsOverviewPage';
+  component?: 'categories' | 'suggestions' | typeof COMPONENT_NAMES.ACADEMIC_OVERVIEW | typeof COMPONENT_NAMES.PERSONAL_PROJECTS_OVERVIEW | typeof COMPONENT_NAMES.PROFESSIONAL_PROJECTS_OVERVIEW | typeof COMPONENT_NAMES.CONTACT_FORM;
   data?: any;
 }
 
@@ -381,7 +382,7 @@ export default function Chat() {
                 );
               }
 
-              if (message.component === 'AcademicOverviewPage') {
+              if (message.component === COMPONENT_NAMES.ACADEMIC_OVERVIEW) {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <AcademicOverviewPage 
@@ -392,7 +393,7 @@ export default function Chat() {
                 );
               }
 
-              if (message.component === 'PersonalProjectsOverviewPage') {
+              if (message.component === COMPONENT_NAMES.PERSONAL_PROJECTS_OVERVIEW) {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <PersonalProjectsOverviewPage 
@@ -403,7 +404,7 @@ export default function Chat() {
                 );
               }
 
-              if (message.component === 'ProfessionalProjectsOverviewPage') {
+              if (message.component === COMPONENT_NAMES.PROFESSIONAL_PROJECTS_OVERVIEW) {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <ProfessionalProjectsOverviewPage 
@@ -414,7 +415,7 @@ export default function Chat() {
                 );
               }
 
-              if (message.component === 'ContactForm') {
+              if (message.component === COMPONENT_NAMES.CONTACT_FORM) {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <ContactForm data={message.data} />
