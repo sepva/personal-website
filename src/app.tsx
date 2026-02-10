@@ -286,10 +286,10 @@ export default function Chat() {
     const isUser = m.role === "user";
     
     // Add text parts
-    m.parts?.forEach((part) => {
+    m.parts?.forEach((part, partIndex) => {
       if (part.type === "text") {
         displayMessages.push({
-          id: `${m.id}-${part.type}`,
+          id: `${m.id}-${part.type}-${partIndex}`,
           type: isUser ? 'user' : 'bot',
           content: part.text
         });
@@ -304,14 +304,14 @@ export default function Chat() {
             // Add a text message first
             if (output.message) {
               displayMessages.push({
-                id: `${m.id}-${part.type}-message`,
+                id: `${m.id}-${part.type}-${partIndex}-message`,
                 type: 'bot',
                 content: output.message,
               });
             }
             // Add the component message
             displayMessages.push({
-              id: `${m.id}-${part.type}-component`,
+              id: `${m.id}-${part.type}-${partIndex}-component`,
               type: 'bot',
               component: output.componentName as any,
               data: output.data || {},
