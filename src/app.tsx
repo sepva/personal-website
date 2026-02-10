@@ -65,6 +65,8 @@ export default function Chat() {
     ]);
   
   const [shareableLinkLoading, setShareableLinkLoading] = useState(true);
+  const [shareableHistoryMessages, setShareableHistoryMessages] = useState<UIMessage[] | null>(null);
+  const [isInitializing, setIsInitializing] = useState(false);
 
   // Check for shareable link on mount and initialize messages
   useEffect(() => {
@@ -100,7 +102,7 @@ export default function Chat() {
           return;
         }
 
-        // Build preprogrammed messages
+        // Build preprogrammed messages for UI
         const preprogrammedMessages: CustomMessage[] = [
           // Intro message
           {
@@ -133,7 +135,37 @@ export default function Chat() {
           }
         ];
 
+        // Build synthetic UIMessage history for server initialization
+        // This gives the AI context about what the user is viewing
+        const typeContext = contentItem.type === 'academic' 
+          ? "from Seppe's academic work"
+          : contentItem.type === 'work'
+          ? "from his professional experience" 
+          : "one of his personal projects";
+        
+        // Generate unique IDs to avoid React key conflicts
+        const timestamp = Date.now();
+        
+        const historyMessages: UIMessage[] = [
+          // User message
+          {
+            id: `shareable-init-user-${timestamp}`,
+            role: 'user',
+            parts: [{ type: 'text', text: `Show me ${contentItem.title}` }]
+          } as UIMessage,
+          // Assistant message with context about the content
+          {
+            id: `shareable-init-assistant-${timestamp}`, 
+            role: 'assistant',
+            parts: [{
+              type: 'text',
+              text: `I'm showing you **${contentItem.title}**${contentItem.description ? ': ' + contentItem.description : ''}. This is ${typeContext}. What would you like to know about it?`
+            }]
+          } as UIMessage
+        ];
+
         setCustomMessages(preprogrammedMessages);
+        setShareableHistoryMessages(historyMessages);
         setShareableLinkLoading(false);
       } catch (error) {
         console.error('Error initializing shareable link:', error);
@@ -178,6 +210,38 @@ export default function Chat() {
     }
   }, [agentMessages]);
 
+  // Send initialization message when shareable history is ready
+  useEffect(() => {
+    const initializeHistory = async () => {
+      // Only initialize if we have history messages, agent is ready, and not already initialized
+      if (!shareableHistoryMessages || isInitializing || agentMessages.length > 0) {
+        return;
+      }
+
+      try {
+        setIsInitializing(true);
+
+        // Send special init-history message
+        await sendMessage({
+          role: 'user' as const,
+          parts: [{ 
+            type: 'init-history' as any, 
+            history: shareableHistoryMessages 
+          } as any]
+        });
+        
+        // Clear the history messages to prevent re-sending
+        setShareableHistoryMessages(null);
+      } catch (error) {
+        console.error('[History Init] Failed to send initialization message:', error);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initializeHistory();
+  }, [shareableHistoryMessages, sendMessage, isInitializing, agentMessages.length]);
+
   // Handler to send a message to the bot on choosing a category
   const handleCategorySelect = async (category: string) => {
     const message = categories.find(cat => cat.id === category)?.prompt || "Help me with this";
@@ -204,6 +268,13 @@ export default function Chat() {
   const handleRefresh = () => {
     clearHistory();
     sessionStorage.removeItem('chat-session-id');
+    // Clear shareable link from URL
+    if (window.location.search) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    // Reset states
+    setShareableHistoryMessages(null);
+    setIsInitializing(false);
     window.location.reload();
   };
 
@@ -387,8 +458,13 @@ export default function Chat() {
             <div className="flex-1">
               <ChatInput
                 onSend={handleUserMessage}
-                disabled={status === "submitted" || status === "streaming"}
+                disabled={status === "submitted" || status === "streaming" || isInitializing}
               />
+              {isInitializing && (
+                <div className="text-xs text-[#9BA1B3] mt-2 pl-2">
+                  Initializing context...
+                </div>
+              )}
             </div>
           </div>
         </div>

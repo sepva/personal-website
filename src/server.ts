@@ -78,6 +78,10 @@ export class Chat extends AIChatAgent<Env> {
    * Captures the connection ID for session tracking and initializes tables
    */
   async onConnect(connection: any) {
+    // Detect reconnection - log but preserve history state
+    if (this.messages.length > 0) {
+      console.log(`[Connection] Reconnection detected - ${this.messages.length} messages in history`);
+    }
     // Store connection ID in the WebSocket attachment so it persists through hibernation
     if (connection.id) {
       connection.serializeAttachment({ connectionId: connection.id });
@@ -734,11 +738,47 @@ export class Chat extends AIChatAgent<Env> {
 
   /**
    * Handles incoming chat messages and manages the response stream
+   * 
+   * Special handling for shareable links:
+   * - Client sends init-history message with conversation context
+   * - We extract the history and inject it before real messages
+   * - This gives the AI context about what content the user is viewing
    */
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // Check for initialization message with history payload and inject history
+    if (this.messages.length > 0) {
+      const initMessage = this.messages.find((msg: any) => 
+        msg.parts?.some((part: any) => part.type === 'init-history')
+      );
+      
+      if (initMessage) {
+        const initPart = initMessage.parts.find((part: any) => part.type === 'init-history');
+        const history = (initPart as any)?.history;
+        
+        if (history && Array.isArray(history) && history.length > 0) {
+          // Remove all init messages from the array
+          const messagesWithoutInit = this.messages.filter((msg: any) => 
+            !msg.parts?.some((part: any) => part.type === 'init-history')
+          );
+          
+          // If only init message present, return early (no LLM call needed)
+          if (messagesWithoutInit.length === 0) {
+            const stream = createUIMessageStream({
+              execute: async () => {}
+            });
+            return createUIMessageStreamResponse({ stream });
+          }
+          
+          // Inject history before real messages
+          this.messages.length = 0;
+          this.messages.push(...history, ...messagesWithoutInit);
+        }
+      }
+    }
+    
     // Apply sliding window to manage message history
     await this.applySlidingWindow();
     // Get MCP tools safely (handles hot reload issues in development)
