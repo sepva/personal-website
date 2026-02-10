@@ -115,10 +115,14 @@ export function createInputGuardrailMiddleware(
           if (chunk.type === 'tool-result' && chunk.toolName === 'reportValidation') {
             // The execute function returns the validation object directly
             const result = (chunk as any).result as { allowed: boolean; reason: string };
-            validation = {
-              allowed: result.allowed,
-              reason: result.reason
-            };
+            if (result && typeof result.allowed === 'boolean') {
+              validation = {
+                allowed: result.allowed,
+                reason: result.reason
+              };
+            } else {
+              console.warn('reportValidation tool result missing expected fields:', result);
+            }
           }
         }
 
