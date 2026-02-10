@@ -327,11 +327,16 @@ export default function Chat() {
   // Check if there's any text content or tool outputs in the latest agent messages
   const hasContent = agentMessages.length > 0 && 
     agentMessages[agentMessages.length - 1]?.parts?.some(part => 
-      (part.type === "text" && part.text) || 
-      (part.type?.startsWith('tool-') && (part as any).state === 'output-available')
+      (part.type === "text" && part.text) 
     );
   
-  if (isLoading && !hasContent && displayMessages[displayMessages.length - 1]?.id !== 'loading-indicator') {
+  // Check if there are any active tool-calls still in progress
+  const hasActiveToolCalls = agentMessages.length > 0 && 
+    agentMessages[agentMessages.length - 1]?.parts?.some(part => 
+      part.type?.startsWith('tool-') && (part as any).state !== 'output-available'
+    );
+  
+  if (isLoading && (!hasContent || hasActiveToolCalls) && displayMessages[displayMessages.length - 1]?.id !== 'loading-indicator') {
     displayMessages.push({
       id: 'loading-indicator',
       type: 'bot',
