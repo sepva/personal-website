@@ -29,11 +29,12 @@ import {
   DEFAULT_BACKOFF_MULTIPLIER,
   API_ENDPOINTS
 } from "@/config/constants";
+import type { WebSocketConnection, StreamTextConfig, ChatStub } from "@/types";
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
-export class Chat extends AIChatAgent<Env> {
+export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
   // Content repository for database operations
   private contentRepository!: ContentRepository;
   // Contact service for handling form submissions with rate limiting
@@ -43,7 +44,7 @@ export class Chat extends AIChatAgent<Env> {
    * Called when a WebSocket connection is established
    * Captures the connection ID for session tracking and initializes tables
    */
-  async onConnect(connection: any) {
+  async onConnect(connection: WebSocketConnection) {
     // Initialize content repository
     this.contentRepository = new ContentRepository(
       this.env.DB,
@@ -262,7 +263,7 @@ export class Chat extends AIChatAgent<Env> {
           errorMessage = lastError.message.toLowerCase();
         }
         // Check if error has a structured format (e.g., {error: {code: 'rate_limit_exceeded'}})
-        const errorObj = error as any;
+        const errorObj = error as { error?: { code?: string }; code?: string };
         const errorCode = errorObj?.error?.code || errorObj?.code || "";
 
         const isContextError =
@@ -370,21 +371,25 @@ export class Chat extends AIChatAgent<Env> {
 
     // Check for initialization message with history payload and inject history
     if (this.messages.length > 0) {
-      const initMessage = this.messages.find((msg: any) =>
-        msg.parts?.some((part: any) => part.type === "init-history")
+      const initMessage = this.messages.find((msg) =>
+        msg.parts?.some(
+          (part) => (part as { type?: string }).type === "init-history"
+        )
       );
 
       if (initMessage) {
-        const initPart = initMessage.parts.find(
-          (part: any) => part.type === "init-history"
+        const initPart = initMessage.parts?.find(
+          (part) => (part as { type?: string }).type === "init-history"
         );
-        const history = (initPart as any)?.history;
+        const history = (initPart as { history?: unknown[] })?.history;
 
         if (history && Array.isArray(history) && history.length > 0) {
           // Remove all init messages from the array
           const messagesWithoutInit = this.messages.filter(
-            (msg: any) =>
-              !msg.parts?.some((part: any) => part.type === "init-history")
+            (msg) =>
+              !msg.parts?.some(
+                (part) => (part as { type?: string }).type === "init-history"
+              )
           );
 
           // If only init message present, return early (no LLM call needed)
@@ -397,7 +402,10 @@ export class Chat extends AIChatAgent<Env> {
 
           // Inject history before real messages
           this.messages.length = 0;
-          this.messages.push(...history, ...messagesWithoutInit);
+          this.messages.push(
+            ...(history as typeof this.messages),
+            ...messagesWithoutInit
+          );
         }
       }
     }
@@ -466,7 +474,7 @@ export class Chat extends AIChatAgent<Env> {
     const result = await this.retryWithMessageTrimming(async () => {
       const modelMessages = await convertToModelMessages(this.messages);
 
-      const streamTextConfig: any = {
+      const streamTextConfig: StreamTextConfig = {
         system: systemPrompt,
         messages: modelMessages,
         model,
@@ -485,7 +493,7 @@ export class Chat extends AIChatAgent<Env> {
           typeof allTools
         >
       };
-      return streamText(streamTextConfig);
+      return streamText(streamTextConfig as Parameters<typeof streamText>[0]);
     }, "streamText");
 
     const stream = createUIMessageStream({
@@ -526,11 +534,15 @@ export default {
         // Create a temporary Durable Object instance to access the database
         // We use a deterministic ID so content can be fetched without a session
         const id = env.Chat.idFromName("__content_fetcher__");
-        const chatStub = env.Chat.get(id) as any;
+        const chatStub = env.Chat.get(id) as unknown as ChatStub;
 
         // Call the method on the Durable Object
-        const result =
-          await chatStub.fetchContentByShareableLink(shareableLink);
+        const result = (await (chatStub.fetchContentByShareableLink?.(
+          shareableLink
+        ) || Promise.resolve({ contentItem: null }))) as {
+          contentItem?: unknown;
+          error?: string;
+        };
 
         if (!result.contentItem) {
           return new Response(JSON.stringify({ error: "Content not found" }), {
@@ -589,11 +601,16 @@ export default {
 
         // Get the Chat Durable Object stub for this session
         const id = env.Chat.idFromName(sessionId);
-        const chatStub = env.Chat.get(id) as any;
+        const chatStub = env.Chat.get(id) as unknown as ChatStub;
 
         // Call saveContactMessage directly on the stub
         // The stub will route this to the actual Durable Object instance
-        const result = await chatStub.saveContactMessage(email, name, message);
+        const result = await (chatStub.saveContactMessage?.(
+          email,
+          name,
+          message
+        ) ||
+          Promise.resolve({ success: false, error: "Method not available" }));
 
         if (!result.success) {
           return new Response(JSON.stringify({ error: result.error }), {
@@ -622,7 +639,7 @@ export default {
     }
 
     // Serve static assets from the public directory
-    // @ts-expect-error - ASSETS is provided by Cloudflare Workers when assets.directory is configured
+    // @ts-expect-error - ASSETS is automatically provided by Cloudflare Workers
     if (env.ASSETS) {
       // @ts-expect-error - ASSETS.fetch is the standard way to serve static files
       return env.ASSETS.fetch(request);

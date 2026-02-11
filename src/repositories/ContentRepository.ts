@@ -12,6 +12,7 @@ import {
   DEFAULT_BACKOFF_MULTIPLIER,
   DATA_TYPE_TO_COMPONENT
 } from "@/config/constants";
+import type { EmbeddingResult } from "@/types";
 
 /**
  * Zod schema for validating and parsing ContentItem from database rows
@@ -179,26 +180,30 @@ export class ContentRepository {
   /**
    * Parse and validate database results using Zod schema
    */
-  private parseDBResults(results: any[]): ContentItem[] {
-    return (
-      results.map((row: any) => {
+  private parseDBResults(results: unknown[]): ContentItem[] {
+    return results
+      .map((row: unknown) => {
         try {
           return ContentItemSchema.parse(row);
         } catch (error) {
+          // Type guard for row to check if it has expected properties
+          const rowObj = row as Record<string, unknown>;
           console.error(
-            `[ContentRepository] Failed to parse content item ${row.id}:`,
+            `[ContentRepository] Failed to parse content item ${rowObj?.id}:`,
             error
           );
           // Return a minimal valid item as fallback
           return {
-            id: row.id || "unknown",
-            title: row.title || "Untitled",
-            description: row.description || "",
-            type: row.type || "blog"
+            id: (rowObj?.id as string) || "unknown",
+            title: (rowObj?.title as string) || "Untitled",
+            description: (rowObj?.description as string) || "",
+            type:
+              (rowObj?.type as ContentItem["type"] as ContentItem["type"]) ||
+              "blog"
           };
         }
-      }) || []
-    );
+      })
+      .filter((item): item is ContentItem => item !== null);
   }
 
   /**
@@ -211,19 +216,24 @@ export class ContentRepository {
     return this.executeDBQuery(
       async () => {
         // Generate embedding for the query
-        const queryEmbedding = await this.ai.run("@cf/baai/bge-base-en-v1.5", {
+        const queryEmbedding = (await this.ai.run("@cf/baai/bge-base-en-v1.5", {
           text: query
-        });
+        })) as EmbeddingResult;
 
         // Extract vector from embedding response
         let queryVector: number[];
         if (Array.isArray(queryEmbedding)) {
           queryVector = queryEmbedding;
-        } else if ((queryEmbedding as any).data) {
-          const data = (queryEmbedding as any).data;
-          queryVector = Array.isArray(data[0]) ? data[0] : data;
+        } else if (queryEmbedding.data) {
+          const data = queryEmbedding.data;
+          // Handle both single and batched embedding responses
+          if (Array.isArray(data[0])) {
+            queryVector = data[0];
+          } else {
+            queryVector = data as unknown as number[];
+          }
         } else {
-          queryVector = queryEmbedding as any;
+          queryVector = queryEmbedding as unknown as number[];
         }
 
         if (!queryVector) {

@@ -8,6 +8,11 @@ import {
   ONE_HOUR_MS,
   ONE_MINUTE_MS
 } from "@/config/constants";
+import type {
+  GlobalRateLimitCheckResult,
+  SessionRateLimitCheckResult,
+  CountResult
+} from "@/types";
 
 /**
  * ContactService handles all contact form submissions with multi-level rate limiting.
@@ -22,9 +27,9 @@ import {
 export class ContactService {
   private db: D1Database;
   private contactSubmissions: number[] = []; // Timestamps of submissions in current session
-  private env: unknown; // Environment variables containing rate limit configs
+  private env: Env;
 
-  constructor(db: D1Database, env: unknown) {
+  constructor(db: D1Database, env: Env) {
     this.db = db;
     this.env = env;
   }
@@ -63,7 +68,7 @@ export class ContactService {
    */
   private async checkGlobalRateLimit(
     globalLimit: number
-  ): Promise<{ exceeded: boolean; count: number }> {
+  ): Promise<GlobalRateLimitCheckResult> {
     const oneHourAgo = Date.now() - ONE_HOUR_MS;
     const oneHourAgoISO = new Date(oneHourAgo).toISOString();
 
@@ -75,7 +80,7 @@ export class ContactService {
         .bind(oneHourAgoISO)
         .all();
 
-      return results[0] as { count: number };
+      return results[0] as unknown as CountResult;
     }, "checkGlobalRateLimit");
 
     return {
@@ -87,10 +92,9 @@ export class ContactService {
   /**
    * Check if session-based rate limit has been exceeded
    */
-  private checkSessionRateLimit(sessionLimit: number): {
-    exceeded: boolean;
-    minutesUntilAvailable?: number;
-  } {
+  private checkSessionRateLimit(
+    sessionLimit: number
+  ): SessionRateLimitCheckResult {
     if (this.contactSubmissions.length < sessionLimit) {
       return { exceeded: false };
     }
@@ -124,7 +128,7 @@ export class ContactService {
         .bind(email, oneHourAgoISO)
         .all();
 
-      return results[0] as { count: number };
+      return results[0] as unknown as CountResult;
     }, "checkEmailRateLimit");
 
     return {
@@ -154,17 +158,18 @@ export class ContactService {
       );
 
       // Get rate limit values from environment variables with defaults
-      const env = this.env as any;
       const globalLimit = Number.parseInt(
-        env?.RATE_LIMIT_GLOBAL_PER_HOUR || String(DEFAULT_GLOBAL_RATE_LIMIT),
+        this.env?.RATE_LIMIT_GLOBAL_PER_HOUR ||
+          String(DEFAULT_GLOBAL_RATE_LIMIT),
         10
       );
       const sessionLimit = Number.parseInt(
-        env?.RATE_LIMIT_SESSION_PER_HOUR || String(DEFAULT_SESSION_RATE_LIMIT),
+        this.env?.RATE_LIMIT_SESSION_PER_HOUR ||
+          String(DEFAULT_SESSION_RATE_LIMIT),
         10
       );
       const emailLimit = Number.parseInt(
-        env?.RATE_LIMIT_EMAIL_PER_HOUR || String(DEFAULT_EMAIL_RATE_LIMIT),
+        this.env?.RATE_LIMIT_EMAIL_PER_HOUR || String(DEFAULT_EMAIL_RATE_LIMIT),
         10
       );
 

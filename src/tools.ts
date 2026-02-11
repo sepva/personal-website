@@ -59,7 +59,10 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
       // Return a serializable object that indicates a component should be rendered
       return {
         type: "react-component",
-        data,
+        data: {
+          data,
+          initialEnlargedItemId: undefined
+        },
         componentName: COMPONENT_NAMES.ACADEMIC_OVERVIEW,
         message: message
       };
@@ -104,7 +107,10 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
       // Return a serializable object that indicates a component should be rendered
       return {
         type: "react-component",
-        data,
+        data: {
+          data,
+          initialEnlargedItemId: undefined
+        },
         componentName: COMPONENT_NAMES.PROFESSIONAL_PROJECTS_OVERVIEW,
         message: message
       };
@@ -149,7 +155,10 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
       // Return a serializable object that indicates a component should be rendered
       return {
         type: "react-component",
-        data,
+        data: {
+          data,
+          initialEnlargedItemId: undefined
+        },
         componentName: COMPONENT_NAMES.PERSONAL_PROJECTS_OVERVIEW,
         message: message
       };

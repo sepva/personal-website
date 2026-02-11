@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { UIMessage } from "@ai-sdk/react";
+import type { ContentItem } from "@/shared";
 
 interface CustomMessage {
   id: string;
@@ -12,7 +13,11 @@ interface CustomMessage {
     | "PersonalProjectsOverviewPage"
     | "ProfessionalProjectsOverviewPage"
     | "ContactForm";
-  data?: any;
+  data?: {
+    data?: ContentItem[];
+    initialEnlargedItemId?: string;
+    suggestions?: string[];
+  };
 }
 
 interface UseDisplayMessagesOptions {
@@ -56,9 +61,21 @@ export function useDisplayMessages({
 
         // Handle tool results that contain React components
         if (part.type && part.type.startsWith("tool-")) {
-          const toolPart = part as any;
-          if (toolPart.state === "output-available" && toolPart.output) {
-            const output = toolPart.output;
+          // Type guard to check if part has tool invocation properties
+          const toolPart = part as {
+            type: string;
+            state?: string;
+            result?: unknown;
+            output?: unknown;
+          };
+          const result = toolPart.result || toolPart.output;
+          if (toolPart.state === "output-available" && result) {
+            const output = result as {
+              type?: string;
+              componentName?: string;
+              message?: string;
+              data?: Record<string, unknown>;
+            };
             // Check if the output indicates a React component should be rendered
             if (output.type === "react-component" && output.componentName) {
               // Add a text message first if present
@@ -73,7 +90,7 @@ export function useDisplayMessages({
               displayMessages.push({
                 id: `${m.id}-${part.type}-${partIndex}-component`,
                 type: "bot",
-                component: output.componentName as any,
+                component: output.componentName as CustomMessage["component"],
                 data: output.data || {}
               });
             }
@@ -96,11 +113,14 @@ export function useDisplayMessages({
     // Check if there are any active tool-calls still in progress
     const hasActiveToolCalls =
       agentMessages.length > 0 &&
-      agentMessages[agentMessages.length - 1]?.parts?.some(
-        (part) =>
-          part.type?.startsWith("tool-") &&
-          (part as any).state !== "output-available"
-      );
+      agentMessages[agentMessages.length - 1]?.parts?.some((part) => {
+        // Type guard for tool parts
+        const toolPart = part as { type?: string; state?: string };
+        return (
+          toolPart.type?.startsWith("tool-") &&
+          toolPart.state !== "output-available"
+        );
+      });
 
     if (
       isLoading &&

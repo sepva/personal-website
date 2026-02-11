@@ -21,6 +21,7 @@ import { COMPONENT_NAMES } from "@/config/constants";
 import { ContactForm } from "./components/contact-form/ContactForm";
 import { Loader } from "./components/loader/Loader";
 import { RotateCcw } from "lucide-react";
+import type { ContentItem } from "@/shared";
 
 // Custom hooks
 import { useSessionManagement } from "@/hooks/useSessionManagement";
@@ -205,7 +206,7 @@ export default function Chat() {
                 return (
                   <div key={message.id} className="max-w-[85%]">
                     <SuggestionChips
-                      suggestions={message.data?.suggestions}
+                      suggestions={message.data?.suggestions || []}
                       onSelect={handleUserMessage}
                     />
                   </div>
@@ -216,7 +217,7 @@ export default function Chat() {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <AcademicOverviewPage
-                      data={message.data?.data || message.data || []}
+                      data={(message.data?.data as ContentItem[]) || []}
                       initialEnlargedItemId={
                         message.data?.initialEnlargedItemId
                       }
@@ -231,7 +232,7 @@ export default function Chat() {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <PersonalProjectsOverviewPage
-                      data={message.data?.data || message.data || []}
+                      data={(message.data?.data as ContentItem[]) || []}
                       initialEnlargedItemId={
                         message.data?.initialEnlargedItemId
                       }
@@ -247,7 +248,7 @@ export default function Chat() {
                 return (
                   <ChatBubble key={message.id} type={message.type}>
                     <ProfessionalProjectsOverviewPage
-                      data={message.data?.data || message.data || []}
+                      data={(message.data?.data as ContentItem[]) || []}
                       initialEnlargedItemId={
                         message.data?.initialEnlargedItemId
                       }

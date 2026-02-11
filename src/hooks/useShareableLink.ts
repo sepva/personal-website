@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import type { UIMessage } from "@ai-sdk/react";
 import { parseShareableLinkFromURL } from "@/lib/shareable-links";
 import { API_ENDPOINTS } from "@/config/constants";
+import type { ShareableLinkResponse } from "@/types";
+import type { ContentItem } from "@/shared";
 
 interface CustomMessage {
   id: string;
@@ -14,7 +16,11 @@ interface CustomMessage {
     | "PersonalProjectsOverviewPage"
     | "ProfessionalProjectsOverviewPage"
     | "ContactForm";
-  data?: any;
+  data?: {
+    data?: ContentItem[];
+    initialEnlargedItemId?: string;
+    suggestions?: string[];
+  };
 }
 
 interface ShareableLinkData {
@@ -80,9 +86,7 @@ export function useShareableLink(): ShareableLinkData {
           return;
         }
 
-        const result = (await response.json()) as {
-          contentItem: any;
-          allItems: any[];
+        const result = (await response.json()) as ShareableLinkResponse & {
           dataType: string;
           componentName: string;
         };
@@ -121,7 +125,7 @@ export function useShareableLink(): ShareableLinkData {
           {
             id: "4",
             type: "bot",
-            component: componentName as any,
+            component: componentName as CustomMessage["component"],
             data: {
               data: allItems,
               initialEnlargedItemId: contentItem.id
