@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ContentItem } from "../shared";
 import { DATA_TYPE_TO_COMPONENT } from "@/constants";
+import { retryWithExponentialBackoff } from "@/utils/retry";
 
 /**
  * Zod schema for validating and parsing ContentItem from database rows
@@ -21,10 +22,26 @@ const ContentItemSchema = z.object({
     })
     .pipe(z.array(z.string()))
     .optional(),
-  date: z.string().nullable().optional().transform(val => val ?? undefined),
-  fullContent: z.string().nullable().optional().transform(val => val ?? undefined),
-  link: z.string().nullable().optional().transform(val => val ?? undefined),
-  shareable_link: z.string().nullable().optional().transform(val => val ?? undefined)
+  date: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((val) => val ?? undefined),
+  fullContent: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((val) => val ?? undefined),
+  link: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((val) => val ?? undefined),
+  shareable_link: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((val) => val ?? undefined)
 });
 
 /**
@@ -36,37 +53,19 @@ interface CacheEntry {
 }
 
 /**
- * Retry configuration for database operations
- */
-interface RetryConfig {
-  maxAttempts: number;
-  initialDelayMs: number;
-  maxDelayMs: number;
-  backoffMultiplier: number;
-}
-
-/**
  * Repository for managing content database operations with caching and retry logic.
  * Follows the Repository Pattern to separate data access from business logic.
  */
 export class ContentRepository {
   // In-memory cache for database results with TTL
   private contentCache: Map<string, CacheEntry> = new Map();
-  
+
   // Cache TTL in milliseconds (5 minutes)
   private readonly CACHE_TTL_MS = 5 * 60 * 1000;
-  
+
   // Max number of cache entries to prevent memory leaks
   private readonly MAX_CACHE_ENTRIES = 100;
-  
-  // Retry configuration for database operations
-  private readonly RETRY_CONFIG: RetryConfig = {
-    maxAttempts: 3,
-    initialDelayMs: 100,
-    maxDelayMs: 2000,
-    backoffMultiplier: 2
-  };
-  
+
   // Connection health tracking
   private lastConnectionHealthCheck: number = 0;
   private lastDBActivity: number = Date.now();
@@ -79,39 +78,6 @@ export class ContentRepository {
     private ai: Ai,
     private vectorIndex: VectorizeIndex
   ) {}
-
-  /**
-   * Execute a function with exponential backoff retry logic
-   */
-  private async withRetry<T>(
-    fn: () => Promise<T>,
-    operationName: string
-  ): Promise<T> {
-    let lastError: Error | null = null;
-    let delay = this.RETRY_CONFIG.initialDelayMs;
-
-    for (let attempt = 1; attempt <= this.RETRY_CONFIG.maxAttempts; attempt++) {
-      try {
-        console.log(`Executing ${operationName} (attempt ${attempt}/${this.RETRY_CONFIG.maxAttempts})`);
-        return await fn();
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        console.warn(
-          `${operationName} failed on attempt ${attempt}: ${lastError.message}`,
-          { delay, remainingAttempts: this.RETRY_CONFIG.maxAttempts - attempt }
-        );
-
-        if (attempt < this.RETRY_CONFIG.maxAttempts) {
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          delay = Math.min(delay * this.RETRY_CONFIG.backoffMultiplier, this.RETRY_CONFIG.maxDelayMs);
-        }
-      }
-    }
-
-    throw new Error(
-      `${operationName} failed after ${this.RETRY_CONFIG.maxAttempts} attempts: ${lastError?.message}`
-    );
-  }
 
   /**
    * Clear expired cache entries to prevent memory leaks
@@ -128,7 +94,9 @@ export class ContentRepository {
     }
 
     if (clearedCount > 0) {
-      console.log(`[ContentRepository] Cleared ${clearedCount} expired cache entries`);
+      console.log(
+        `[ContentRepository] Cleared ${clearedCount} expired cache entries`
+      );
     }
   }
 
@@ -138,10 +106,12 @@ export class ContentRepository {
   private async validateConnection(): Promise<boolean> {
     try {
       await this.db.prepare("SELECT 1 as health_check").all();
-      
+
       this.isConnectionValid = true;
       this.lastConnectionHealthCheck = Date.now();
-      console.log("[ContentRepository] Database connection validation successful");
+      console.log(
+        "[ContentRepository] Database connection validation successful"
+      );
       return true;
     } catch (error) {
       this.isConnectionValid = false;
@@ -166,7 +136,9 @@ export class ContentRepository {
       timeSinceLastActivity > this.CONNECTION_IDLE_TIMEOUT_MS ||
       !this.isConnectionValid
     ) {
-      console.log("[ContentRepository] Connection health check needed - validating...");
+      console.log(
+        "[ContentRepository] Connection health check needed - validating..."
+      );
       await this.validateConnection();
     }
   }
@@ -180,10 +152,24 @@ export class ContentRepository {
   ): Promise<T> {
     await this.ensureConnectionHealth();
 
-    const result = await this.withRetry(async () => {
-      this.lastDBActivity = Date.now();
-      return fn();
-    }, operationName);
+    const result = await retryWithExponentialBackoff(
+      async () => {
+        this.lastDBActivity = Date.now();
+        return fn();
+      },
+      {
+        maxAttempts: 3,
+        baseDelayMs: 100,
+        maxDelayMs: 2000,
+        backoffMultiplier: 2,
+        onRetry: (attempt, error, delay) => {
+          console.warn(
+            `${operationName} failed on attempt ${attempt}: ${error.message}`,
+            { delay, remainingAttempts: 3 - attempt }
+          );
+        }
+      }
+    );
 
     return result;
   }
@@ -192,83 +178,96 @@ export class ContentRepository {
    * Parse and validate database results using Zod schema
    */
   private parseDBResults(results: any[]): ContentItem[] {
-    return results.map((row: any) => {
-      try {
-        return ContentItemSchema.parse(row);
-      } catch (error) {
-        console.error(`[ContentRepository] Failed to parse content item ${row.id}:`, error);
-        // Return a minimal valid item as fallback
-        return {
-          id: row.id || "unknown",
-          title: row.title || "Untitled",
-          description: row.description || "",
-          type: row.type || "blog"
-        };
-      }
-    }) || [];
+    return (
+      results.map((row: any) => {
+        try {
+          return ContentItemSchema.parse(row);
+        } catch (error) {
+          console.error(
+            `[ContentRepository] Failed to parse content item ${row.id}:`,
+            error
+          );
+          // Return a minimal valid item as fallback
+          return {
+            id: row.id || "unknown",
+            title: row.title || "Untitled",
+            description: row.description || "",
+            type: row.type || "blog"
+          };
+        }
+      }) || []
+    );
   }
 
   /**
    * Query the vector database for relevant documents
    */
-  async queryVectorDatabase(query: string, topK: number = 3): Promise<ContentItem[]> {
-    return this.executeDBQuery(async () => {
-      // Generate embedding for the query
-      const queryEmbedding = await this.ai.run("@cf/baai/bge-base-en-v1.5", {
-        text: query
-      });
+  async queryVectorDatabase(
+    query: string,
+    topK: number = 3
+  ): Promise<ContentItem[]> {
+    return this.executeDBQuery(
+      async () => {
+        // Generate embedding for the query
+        const queryEmbedding = await this.ai.run("@cf/baai/bge-base-en-v1.5", {
+          text: query
+        });
 
-      // Extract vector from embedding response
-      let queryVector: number[];
-      if (Array.isArray(queryEmbedding)) {
-        queryVector = queryEmbedding;
-      } else if ((queryEmbedding as any).data) {
-        const data = (queryEmbedding as any).data;
-        queryVector = Array.isArray(data[0]) ? data[0] : data;
-      } else {
-        queryVector = queryEmbedding as any;
-      }
-      
-      if (!queryVector) {
-        throw new Error("Failed to generate query vector embedding");
-      }
-
-      // Query the vector index with metadata
-      const searchResults = await this.vectorIndex.query(queryVector, {
-        topK: topK,
-        returnMetadata: "all"
-      });
-
-      const contentItems: ContentItem[] = [];
-      for (const result of searchResults.matches) {
-        const dataType = result.metadata?.data_type as string;
-        
-        if (!dataType) continue;
-
-        try {
-          const { results } = await this.db.prepare(
-            `SELECT * FROM ${dataType} WHERE id = ?`
-          )
-            .bind(result.id)
-            .all();
-
-          contentItems.push(...this.parseDBResults(results));
-        } catch (error) {
-          console.warn(
-            `[ContentRepository] Failed to fetch record ${result.id} from ${dataType}:`,
-            error instanceof Error ? error.message : String(error)
-          );
-          continue;
+        // Extract vector from embedding response
+        let queryVector: number[];
+        if (Array.isArray(queryEmbedding)) {
+          queryVector = queryEmbedding;
+        } else if ((queryEmbedding as any).data) {
+          const data = (queryEmbedding as any).data;
+          queryVector = Array.isArray(data[0]) ? data[0] : data;
+        } else {
+          queryVector = queryEmbedding as any;
         }
-      }
-      return contentItems;
-    }, `queryVectorDatabase(${query.slice(0, 50)})`);
+
+        if (!queryVector) {
+          throw new Error("Failed to generate query vector embedding");
+        }
+
+        // Query the vector index with metadata
+        const searchResults = await this.vectorIndex.query(queryVector, {
+          topK: topK,
+          returnMetadata: "all"
+        });
+
+        const contentItems: ContentItem[] = [];
+        for (const result of searchResults.matches) {
+          const dataType = result.metadata?.data_type as string;
+
+          if (!dataType) continue;
+
+          try {
+            const { results } = await this.db
+              .prepare(`SELECT * FROM ${dataType} WHERE id = ?`)
+              .bind(result.id)
+              .all();
+
+            contentItems.push(...this.parseDBResults(results));
+          } catch (error) {
+            console.warn(
+              `[ContentRepository] Failed to fetch record ${result.id} from ${dataType}:`,
+              error instanceof Error ? error.message : String(error)
+            );
+            continue;
+          }
+        }
+        return contentItems;
+      },
+      `queryVectorDatabase(${query.slice(0, 50)})`
+    );
   }
 
   /**
    * Fetch content pages from database with caching and retry logic
    */
-  async fetchContentByType(dataType: string, id?: string): Promise<ContentItem[]> {
+  async fetchContentByType(
+    dataType: string,
+    id?: string
+  ): Promise<ContentItem[]> {
     const cacheKey = `${dataType}${id ? ":" + id : ""}`;
 
     // Clear expired cache periodically
@@ -279,33 +278,44 @@ export class ContentRepository {
       const cached = this.contentCache.get(cacheKey)!;
       const age = Date.now() - cached.timestamp;
       if (age < this.CACHE_TTL_MS) {
-        console.log(`[ContentRepository] Cache hit for ${cacheKey} (age: ${age}ms)`);
+        console.log(
+          `[ContentRepository] Cache hit for ${cacheKey} (age: ${age}ms)`
+        );
         return cached.data;
       } else {
-        console.log(`[ContentRepository] Cache expired for ${cacheKey}, removing`);
+        console.log(
+          `[ContentRepository] Cache expired for ${cacheKey}, removing`
+        );
         this.contentCache.delete(cacheKey);
       }
     }
 
     // Cache miss - fetch from database
-    console.log(`[ContentRepository] Cache miss for ${cacheKey}, fetching from DB`);
+    console.log(
+      `[ContentRepository] Cache miss for ${cacheKey}, fetching from DB`
+    );
 
     try {
-      const result = await this.executeDBQuery(async () => {
-        let query = `SELECT * FROM ${dataType}`;
-        const params: string[] = [];
+      const result = await this.executeDBQuery(
+        async () => {
+          let query = `SELECT * FROM ${dataType}`;
+          const params: string[] = [];
 
-        if (id) {
-          query += " WHERE id = ?";
-          params.push(id);
-        }
+          if (id) {
+            query += " WHERE id = ?";
+            params.push(id);
+          }
 
-        const stmt = this.db.prepare(query);
-        const { results } =
-          params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
+          const stmt = this.db.prepare(query);
+          const { results } =
+            params.length > 0
+              ? await stmt.bind(...params).all()
+              : await stmt.all();
 
-        return results;
-      }, `fetchContentByType(${dataType}${id ? ":" + id : ""})`);
+          return results;
+        },
+        `fetchContentByType(${dataType}${id ? ":" + id : ""})`
+      );
 
       const parsedResults = this.parseDBResults(result);
 
@@ -313,17 +323,19 @@ export class ContentRepository {
       if (this.contentCache.size >= this.MAX_CACHE_ENTRIES) {
         let oldestKey: string | null = null;
         let oldestTimestamp = Infinity;
-        
+
         for (const [key, value] of this.contentCache.entries()) {
           if (value.timestamp < oldestTimestamp) {
             oldestTimestamp = value.timestamp;
             oldestKey = key;
           }
         }
-        
+
         if (oldestKey) {
           this.contentCache.delete(oldestKey);
-          console.log(`[ContentRepository] Evicted oldest cache entry (${oldestKey})`);
+          console.log(
+            `[ContentRepository] Evicted oldest cache entry (${oldestKey})`
+          );
         }
       }
 
@@ -353,13 +365,12 @@ export class ContentRepository {
     dataType: string;
     componentName: string;
   }> {
-    const dataTypes = ['academic', 'work', 'projects'];
-    
+    const dataTypes = ["academic", "work", "projects"];
+
     for (const dataType of dataTypes) {
       try {
-        const { results } = await this.db.prepare(
-          `SELECT * FROM ${dataType} WHERE shareable_link = ?`
-        )
+        const { results } = await this.db
+          .prepare(`SELECT * FROM ${dataType} WHERE shareable_link = ?`)
           .bind(shareableLink)
           .all();
 
@@ -378,7 +389,10 @@ export class ContentRepository {
           };
         }
       } catch (error) {
-        console.warn(`[ContentRepository] Error searching ${dataType} for shareable_link:`, error);
+        console.warn(
+          `[ContentRepository] Error searching ${dataType} for shareable_link:`,
+          error
+        );
         continue;
       }
     }
@@ -387,8 +401,8 @@ export class ContentRepository {
     return {
       contentItem: null,
       allItems: [],
-      dataType: '',
-      componentName: ''
+      dataType: "",
+      componentName: ""
     };
   }
 }
