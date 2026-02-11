@@ -19,6 +19,7 @@ import { tools } from "./tools";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
 import { createInputGuardrailMiddleware } from "./middleware/inputGuardrail";
 import { createOpenRouterProvider } from "./lib/openrouter";
+import { createLogger, type Logger } from "./utils/logger";
 import { ContentRepository } from "./repositories/ContentRepository";
 import { ContactService } from "./services/ContactService";
 import {
@@ -39,17 +40,33 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
   private contentRepository!: ContentRepository;
   // Contact service for handling form submissions with rate limiting
   private contactService!: ContactService;
+  // Logger for structured logging
+  private logger!: Logger;
 
   /**
    * Called when a WebSocket connection is established
    * Captures the connection ID for session tracking and initializes tables
    */
   async onConnect(connection: WebSocketConnection) {
+    // Initialize logger
+    this.logger = createLogger('chat', this.env, {
+      connectionId: connection.id,
+      sessionId: this.ctx.id.toString()
+    });
+
+    this.logger.info(
+      'connection_established',
+      'WebSocket connection established',
+      { connectionId: connection.id },
+      'websocket'
+    );
+
     // Initialize content repository
     this.contentRepository = new ContentRepository(
       this.env.DB,
       this.env.AI,
-      this.env.VECTOR_INDEX
+      this.env.VECTOR_INDEX,
+      this.env
     );
 
     // Initialize contact service
@@ -57,20 +74,36 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
 
     // Detect reconnection - log but preserve history state
     if (this.messages.length > 0) {
-      console.log(
-        `[Connection] Reconnection detected - ${this.messages.length} messages in history`
+      this.logger.info(
+        'reconnection_detected',
+        'Reconnection detected with existing message history',
+        { messageCount: this.messages.length },
+        'websocket'
       );
     }
+
     // Store connection ID in the WebSocket attachment so it persists through hibernation
     if (connection.id) {
       connection.serializeAttachment({ connectionId: connection.id });
-      console.log(`Chat session started with connection ID: ${connection.id}`);
     } else {
-      console.warn("Connection established but no connection ID available");
+      this.logger.warn(
+        'connection_no_id',
+        'Connection established but no connection ID available',
+        {},
+        'websocket'
+      );
     }
 
     // Create contact_messages table if it doesn't exist
+    const timer = this.logger.startTimer();
     try {
+      this.logger.info(
+        'table_initialization',
+        'Initializing contact_messages table',
+        {},
+        'database'
+      );
+
       await this.env.DB.prepare(
         `
         CREATE TABLE IF NOT EXISTS contact_messages (
@@ -82,7 +115,6 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
         )
       `
       ).run();
-      console.log("Contact messages table initialized");
 
       // Create index on timestamp for efficient rate limit queries
       await this.env.DB.prepare(
@@ -91,9 +123,29 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
         ON contact_messages(timestamp)
       `
       ).run();
-      console.log("Contact messages timestamp index initialized");
+
+      timer.end(
+        'info',
+        'table_initialization',
+        'Contact messages table initialized successfully',
+        {},
+        'database'
+      );
     } catch (error) {
-      console.error("Failed to create contact_messages table:", error);
+      timer.end(
+        'error',
+        'table_initialization',
+        'Failed to create contact_messages table',
+        {},
+        'database'
+      );
+      this.logger.error(
+        'table_initialization_failed',
+        'Failed to create contact_messages table',
+        error,
+        {},
+        'database'
+      );
     }
   }
 
@@ -126,7 +178,8 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
       this.contentRepository = new ContentRepository(
         this.env.DB,
         this.env.AI,
-        this.env.VECTOR_INDEX
+        this.env.VECTOR_INDEX,
+        this.env
       );
     }
     return this.contentRepository.fetchContentByShareableLink(shareableLink);
@@ -160,19 +213,25 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     );
 
     const initialMessageCount = this.messages.length;
-    console.log(
-      `[Sliding Window] Initial message count: ${initialMessageCount}, max allowed: ${maxMessages}`
+    this.logger.debug(
+      'sliding_window',
+      'Checking message history against limit',
+      { initialMessageCount, maxMessages }
     );
 
     if (this.messages.length <= maxMessages) {
-      console.log(
-        `[Sliding Window] No trimming needed (${this.messages.length}/${maxMessages})`
+      this.logger.info(
+        'sliding_window',
+        'No trimming needed',
+        { messageCount: this.messages.length, maxMessages, withinLimit: true }
       );
       return; // No need to trim
     }
 
-    console.log(
-      `[Sliding Window] Trimming required - analyzing conversation turns...`
+    this.logger.info(
+      'sliding_window',
+      'Trimming required - analyzing conversation turns',
+      { messageCount: this.messages.length, maxMessages }
     );
 
     // Convert to model messages to understand structure
@@ -186,8 +245,10 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
       }
     });
 
-    console.log(
-      `[Sliding Window] Found ${turnStartIndices.length} conversation turns`
+    this.logger.debug(
+      'sliding_window',
+      'Found conversation turns',
+      { turnCount: turnStartIndices.length }
     );
 
     // Calculate how many complete turns to drop
@@ -201,9 +262,6 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
       if (modelMessages.length - messagesToDrop - turnLength >= maxMessages) {
         messagesToDrop += turnLength;
         turnsToRemove++;
-        console.log(
-          `[Sliding Window] Will drop turn ${i + 1} (${turnLength} messages, starting at index ${turnStart})`
-        );
       } else {
         break;
       }
@@ -212,16 +270,24 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     if (messagesToDrop > 0) {
       // Remove oldest messages from UIMessage array
       // UIMessages and ModelMessages have 1:1 correspondence after conversion
+      const beforeCount = this.messages.length;
       this.messages = this.messages.slice(messagesToDrop);
-      console.log(
-        `[Sliding Window] ✓ Dropped ${turnsToRemove} oldest turn(s) (${messagesToDrop} messages)`
-      );
-      console.log(
-        `[Sliding Window] ✓ Final message count: ${this.messages.length}/${maxMessages}`
+      this.logger.warn(
+        'message_trim',
+        'Dropped oldest conversation turns due to message limit',
+        {
+          beforeCount,
+          afterCount: this.messages.length,
+          messagesDropped: messagesToDrop,
+          turnsRemoved: turnsToRemove,
+          maxMessages
+        }
       );
     } else {
-      console.log(
-        `[Sliding Window] No messages dropped - window already optimized`
+      this.logger.debug(
+        'sliding_window',
+        'No messages dropped - window already optimized',
+        {}
       );
     }
   }
@@ -240,21 +306,15 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        console.log(
-          `[Retry] Executing ${operationName} (attempt ${attempt}/${maxAttempts})`
+        this.logger.debug(
+          'ai_retry',
+          `Executing ${operationName}`,
+          { attempt, maxAttempts, operationName },
+          'ai'
         );
         return await fn();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-
-        // Log the full error for debugging
-        console.error(`[Retry] ===== ERROR CAUGHT =====`);
-        console.error(
-          `[Retry] Error type: ${error?.constructor?.name || typeof error}`
-        );
-        console.error(`[Retry] Error message: ${lastError.message}`);
-        console.error(`[Retry] Full error:`, JSON.stringify(error, null, 2));
-        console.error(`[Retry] Stack trace:`, lastError.stack);
 
         // Check if error is recoverable (context length or rate limit)
         // Handle both Error objects and structured error objects from OpenAI
@@ -279,21 +339,39 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
 
         if (!isContextError && !isRateLimitError) {
           // Not a recoverable error, throw immediately
-          console.error(`[Retry] Non-recoverable error, throwing immediately`);
+          this.logger.error(
+            'ai_retry',
+            'Non-recoverable error encountered',
+            error,
+            { attempt, operationName, errorType: lastError.constructor.name },
+            'ai'
+          );
           throw lastError;
         }
 
         const errorType = isContextError ? "context_length" : "rate_limit";
-        console.warn(
-          `[Retry] ${errorType} error on attempt ${attempt}/${maxAttempts}: ${lastError.message || JSON.stringify(errorObj)}`,
-          { delay, remainingAttempts: maxAttempts - attempt }
+        this.logger.warn(
+          'ai_retry',
+          `Retryable ${errorType} error encountered`,
+          {
+            attempt,
+            maxAttempts,
+            errorType,
+            errorMessage: lastError.message,
+            delay,
+            remainingAttempts: maxAttempts - attempt
+          },
+          'ai'
         );
 
         if (attempt < maxAttempts) {
           // For context errors, try to drop oldest conversation turn
           if (isContextError && this.messages.length > 0) {
-            console.log(
-              `[Retry] Trimming messages due to context length error...`
+            this.logger.info(
+              'message_trim',
+              'Trimming messages due to context length error',
+              { messageCount: this.messages.length },
+              'ai'
             );
             // Convert to model messages to find turn boundaries
             const modelMessages = await convertToModelMessages(this.messages);
@@ -315,20 +393,35 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
               // Drop everything before the second user message
               const beforeCount = this.messages.length;
               this.messages = this.messages.slice(secondUserIdx);
-              console.log(
-                `[Retry] Dropped oldest conversation turn (${beforeCount - this.messages.length} messages), ${this.messages.length} remaining`
+              this.logger.warn(
+                'message_trim',
+                'Dropped oldest conversation turn',
+                {
+                  beforeCount,
+                  afterCount: this.messages.length,
+                  messagesDropped: beforeCount - this.messages.length
+                },
+                'ai'
               );
             } else if (this.messages.length > 0) {
               // Fallback: just drop the oldest message
               this.messages = this.messages.slice(1);
-              console.log(
-                `[Retry] Dropped oldest message as fallback, ${this.messages.length} remaining`
+              this.logger.warn(
+                'message_trim',
+                'Dropped oldest message as fallback',
+                { remainingCount: this.messages.length },
+                'ai'
               );
             }
           }
 
           // Wait with exponential backoff
-          console.log(`[Retry] Waiting ${delay}ms before retry...`);
+          this.logger.debug(
+            'ai_retry',
+            'Waiting before retry with exponential backoff',
+            { delay, nextAttempt: attempt + 1 },
+            'ai'
+          );
           await new Promise((resolve) => setTimeout(resolve, delay));
           delay = Math.min(
             delay * DEFAULT_BACKOFF_MULTIPLIER,
@@ -339,7 +432,13 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     }
 
     // All retries exhausted
-    console.error(`[Retry] All ${maxAttempts} attempts exhausted`);
+    this.logger.error(
+      'ai_retry',
+      'All retry attempts exhausted',
+      lastError,
+      { maxAttempts, operationName },
+      'ai'
+    );
     throw new Error(
       `${operationName} failed after ${maxAttempts} attempts: ${lastError?.message}`
     );
@@ -357,17 +456,27 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    const timer = this.logger.startTimer();
+    
     // Ensure repositories/services are initialized (in case onConnect wasn't called)
     if (!this.contentRepository) {
       this.contentRepository = new ContentRepository(
         this.env.DB,
         this.env.AI,
-        this.env.VECTOR_INDEX
+        this.env.VECTOR_INDEX,
+        this.env
       );
     }
     if (!this.contactService) {
       this.contactService = new ContactService(this.env.DB, this.env);
     }
+
+    this.logger.info(
+      'chat_message_received',
+      'Processing incoming chat message',
+      { messageCount: this.messages.length },
+      'websocket'
+    );
 
     // Check for initialization message with history payload and inject history
     if (this.messages.length > 0) {
@@ -417,6 +526,12 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     try {
       mcpTools = this.mcp.getAITools();
     } catch (error) {
+      this.logger.warn(
+        'mcp_tools_unavailable',
+        'MCP tools unavailable, continuing without them',
+        {},
+        'tools'
+      );
       // Continue without MCP tools - they'll be available after a full reload
     }
 
@@ -455,20 +570,20 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     const wrappedOnFinish: StreamTextOnFinishCallback<ToolSet> = async (
       event
     ) => {
-      // Log which model was actually used by OpenRouter
-      const modelUsed = event.response?.modelId || "unknown";
-      console.log(`[OpenRouter] Model used: ${modelUsed}`);
-
-      // Log usage if available
-      if (event.usage) {
-        console.log(`[OpenRouter] Usage:`, event.usage);
-      }
-
+      // LangSmith tracks model usage and costs - no need to log here
+      
       // Call original onFinish callback if provided
       if (onFinish) {
         await onFinish(event);
       }
     };
+
+    this.logger.info(
+      'ai_stream_start',
+      'Starting AI stream',
+      { messageCount: this.messages.length },
+      'ai'
+    );
 
     // Wrap streamText call with retry logic for context/rate limit errors
     const result = await this.retryWithMessageTrimming(async () => {
@@ -501,7 +616,29 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
         try {
           const uiStream = result.toUIMessageStream();
           writer.merge(uiStream);
+          
+          timer.end(
+            'info',
+            'ai_stream_complete',
+            'AI stream completed successfully',
+            {},
+            'ai'
+          );
         } catch (error) {
+          timer.end(
+            'error',
+            'ai_stream_failed',
+            'AI stream failed',
+            {},
+            'ai'
+          );
+          this.logger.error(
+            'ai_stream_failed',
+            'Failed to create UI stream',
+            error,
+            {},
+            'ai'
+          );
           throw error;
         }
       }
@@ -518,12 +655,32 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
     const url = new URL(request.url);
+    const requestId = crypto.randomUUID();
+    const logger = createLogger('chat', env, { requestId });
+    const timer = logger.startTimer();
+
+    logger.info(
+      'http_request',
+      'Incoming HTTP request',
+      {
+        method: request.method,
+        path: url.pathname,
+        hasQuery: url.search.length > 0
+      },
+      'api'
+    );
 
     // Handle shareable link content fetching
     if (url.pathname === "/api/content" && request.method === "GET") {
       const shareableLink = url.searchParams.get("link");
 
       if (!shareableLink) {
+        logger.warn(
+          'fetch_shareable_link',
+          'Missing link query parameter',
+          {},
+          'api'
+        );
         return new Response(
           JSON.stringify({ error: "Missing 'link' query parameter" }),
           { status: 400, headers: { "Content-Type": "application/json" } }
@@ -531,6 +688,12 @@ export default {
       }
 
       try {
+        logger.info(
+          'fetch_shareable_link',
+          'Fetching content by shareable link',
+          { linkId: shareableLink },
+          'api'
+        );
         // Create a temporary Durable Object instance to access the database
         // We use a deterministic ID so content can be fetched without a session
         const id = env.Chat.idFromName("__content_fetcher__");
@@ -545,12 +708,25 @@ export default {
         };
 
         if (!result.contentItem) {
+          logger.info(
+            'fetch_shareable_link',
+            'Content not found for shareable link',
+            { linkId: shareableLink, status: 404 },
+            'api'
+          );
           return new Response(JSON.stringify({ error: "Content not found" }), {
             status: 404,
             headers: { "Content-Type": "application/json" }
           });
         }
 
+        timer.end(
+          'info',
+          'fetch_shareable_link',
+          'Successfully fetched shareable link content',
+          { linkId: shareableLink, status: 200 },
+          'api'
+        );
         return new Response(JSON.stringify(result), {
           status: 200,
           headers: {
@@ -559,7 +735,20 @@ export default {
           }
         });
       } catch (error) {
-        console.error("Error fetching content by shareable link:", error);
+        timer.end(
+          'error',
+          'fetch_shareable_link',
+          'Error fetching shareable link content',
+          { linkId: shareableLink },
+          'api'
+        );
+        logger.error(
+          'fetch_shareable_link',
+          'Failed to fetch content by shareable link',
+          error,
+          { linkId: shareableLink },
+          'api'
+        );
         return new Response(
           JSON.stringify({ error: "Internal server error" }),
           { status: 500, headers: { "Content-Type": "application/json" } }
@@ -570,6 +759,12 @@ export default {
     // Handle contact form submissions
     if (url.pathname === API_ENDPOINTS.CONTACT && request.method === "POST") {
       try {
+        logger.info(
+          'contact_submission',
+          'Processing contact form submission',
+          {},
+          'api'
+        );
         // Parse request body
         const body = (await request.json()) as {
           email: string;
@@ -588,6 +783,12 @@ export default {
 
         const validation = contactSchema.safeParse(body);
         if (!validation.success) {
+          logger.warn(
+            'contact_submission',
+            'Invalid contact form input',
+            { errors: validation.error.errors },
+            'api'
+          );
           return new Response(
             JSON.stringify({
               error: "Invalid input",
@@ -598,6 +799,13 @@ export default {
         }
 
         const { email, name, message, sessionId } = validation.data;
+
+        logger.info(
+          'contact_submission',
+          'Contact form validated successfully',
+          { email, sessionId },
+          'api'
+        );
 
         // Get the Chat Durable Object stub for this session
         const id = env.Chat.idFromName(sessionId);
@@ -613,18 +821,45 @@ export default {
           Promise.resolve({ success: false, error: "Method not available" }));
 
         if (!result.success) {
+          const status = result.error?.includes("Rate limit") ? 429 : 500;
+          logger.warn(
+            'contact_submission',
+            'Contact form submission failed',
+            { email, sessionId, error: result.error, status },
+            'api'
+          );
           return new Response(JSON.stringify({ error: result.error }), {
-            status: result.error?.includes("Rate limit") ? 429 : 500,
+            status,
             headers: { "Content-Type": "application/json" }
           });
         }
 
+        timer.end(
+          'info',
+          'contact_submission',
+          'Contact form submitted successfully',
+          { email, sessionId, status: 200 },
+          'api'
+        );
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { "Content-Type": "application/json" }
         });
       } catch (error) {
-        console.error("Error handling contact submission:", error);
+        timer.end(
+          'error',
+          'contact_submission',
+          'Error handling contact form submission',
+          {},
+          'api'
+        );
+        logger.error(
+          'contact_submission',
+          'Failed to handle contact form submission',
+          error,
+          {},
+          'api'
+        );
         return new Response(
           JSON.stringify({ error: "Internal server error" }),
           { status: 500, headers: { "Content-Type": "application/json" } }

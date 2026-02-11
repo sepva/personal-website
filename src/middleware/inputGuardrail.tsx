@@ -4,6 +4,7 @@ import { tool } from "ai";
 import { z } from "zod/v3";
 import validationPrompt from "../instructions/input_validation_prompt.md?raw";
 import { createOpenRouterProvider } from "../lib/openrouter";
+import { createLogger } from "../utils/logger";
 
 interface ValidationResult {
   allowed: boolean;
@@ -22,6 +23,7 @@ export function createInputGuardrailMiddleware(
   vectorSearch: VectorSearch,
   env: Cloudflare.Env
 ): LanguageModelV3Middleware {
+  const logger = createLogger('validation', env);
   // Create vector search tool for validation agent
   const vectorSearchTool = tool({
     description: `Performs semantic vector search across documents about Seppe Vanswegenoven.
@@ -142,9 +144,11 @@ export function createInputGuardrailMiddleware(
                   reason: result.reason
                 };
               } else {
-                console.warn(
-                  "reportValidation tool result missing expected fields:",
-                  result
+                logger.warn(
+                  'validation_tool_missing_fields',
+                  'reportValidation tool result missing expected fields',
+                  { result },
+                  'validation'
                 );
               }
             }
@@ -164,11 +168,15 @@ export function createInputGuardrailMiddleware(
               .filter((msg: any) => msg.role === "user")
               .slice(-1)[0];
 
-            console.warn("Input guardrail rejected message:", {
-              timestamp: new Date().toISOString(),
-              reason: validation.reason,
-              lastUserMessage: lastUserMessage?.content
-            });
+            logger.warn(
+              'content_blocked',
+              'Input guardrail rejected message',
+              {
+                reason: validation.reason,
+                inputSnippet: lastUserMessage?.content?.slice(0, 100)
+              },
+              'validation'
+            );
 
             // Create predefined error message
             const errorMessage = `I appreciate your interest, but this question is outside the scope of what I can help with. I'm here to discuss Seppe's background, projects, and professional experience.${validation.reason && validation.reason !== "No reason provided" ? ` ${validation.reason}` : ""}`;
@@ -241,10 +249,21 @@ export function createInputGuardrailMiddleware(
             };
           }
 
-          console.log("Input guardrail: message validated successfully");
+          logger.info(
+            'content_approved',
+            'Input guardrail: message validated successfully',
+            {},
+            'validation'
+          );
         } catch (error) {
           // For validation errors (network, API issues), log and fail open
-          console.error("Input guardrail validation error:", error);
+          logger.error(
+            'validation_llm_failed',
+            'Input guardrail validation error - falling back to allow',
+            error,
+            {},
+            'validation'
+          );
           // Allow the request to proceed with original prompt
         }
       }

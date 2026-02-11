@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ContentItem } from "../shared";
 import { retryWithExponentialBackoff } from "@/utils/retry";
+import { createLogger, type Logger } from "@/utils/logger";
 import {
   CACHE_TTL_MS,
   MAX_CACHE_ENTRIES,
@@ -76,11 +77,17 @@ export class ContentRepository {
   private lastDBActivity: number = Date.now();
   private isConnectionValid: boolean = true;
 
+  // Logger for structured logging
+  private logger: Logger;
+
   constructor(
     private db: D1Database,
     private ai: Ai,
-    private vectorIndex: VectorizeIndex
-  ) {}
+    private vectorIndex: VectorizeIndex,
+    env: { LOG_LEVEL?: string; LOG_FORMAT?: 'json' | 'pretty' }
+  ) {
+    this.logger = createLogger('content', env);
+  }
 
   /**
    * Clear expired cache entries to prevent memory leaks
@@ -97,8 +104,11 @@ export class ContentRepository {
     }
 
     if (clearedCount > 0) {
-      console.log(
-        `[ContentRepository] Cleared ${clearedCount} expired cache entries`
+      this.logger.debug(
+        'cache_cleanup',
+        'Cleared expired cache entries',
+        { clearedCount, cacheSize: this.contentCache.size },
+        'cache'
       );
     }
   }
@@ -112,15 +122,21 @@ export class ContentRepository {
 
       this.isConnectionValid = true;
       this.lastConnectionHealthCheck = Date.now();
-      console.log(
-        "[ContentRepository] Database connection validation successful"
+      this.logger.info(
+        'health_check',
+        'Database connection validation successful',
+        {},
+        'database'
       );
       return true;
     } catch (error) {
       this.isConnectionValid = false;
-      console.warn(
-        "[ContentRepository] Database connection validation failed:",
-        error instanceof Error ? error.message : String(error)
+      this.logger.error(
+        'health_check_failed',
+        'Database connection validation failed',
+        error,
+        {},
+        'database'
       );
       return false;
     }
@@ -139,8 +155,11 @@ export class ContentRepository {
       timeSinceLastActivity > CONNECTION_IDLE_TIMEOUT_MS ||
       !this.isConnectionValid
     ) {
-      console.log(
-        "[ContentRepository] Connection health check needed - validating..."
+      this.logger.info(
+        'health_check',
+        'Connection health check needed - validating',
+        { timeSinceLastCheck, timeSinceLastActivity },
+        'database'
       );
       await this.validateConnection();
     }
@@ -290,21 +309,30 @@ export class ContentRepository {
       const cached = this.contentCache.get(cacheKey)!;
       const age = Date.now() - cached.timestamp;
       if (age < CACHE_TTL_MS) {
-        console.log(
-          `[ContentRepository] Cache hit for ${cacheKey} (age: ${age}ms)`
+        this.logger.debug(
+          'cache_hit',
+          'Cache hit for content query',
+          { cacheKey, age, ttl: CACHE_TTL_MS },
+          'cache'
         );
         return cached.data;
       } else {
-        console.log(
-          `[ContentRepository] Cache expired for ${cacheKey}, removing`
+        this.logger.debug(
+          'cache_expired',
+          'Cache expired for content query',
+          { cacheKey, age },
+          'cache'
         );
         this.contentCache.delete(cacheKey);
       }
     }
 
     // Cache miss - fetch from database
-    console.log(
-      `[ContentRepository] Cache miss for ${cacheKey}, fetching from DB`
+    this.logger.info(
+      'db_query',
+      'Cache miss - fetching content from database',
+      { cacheKey, contentType: dataType, cacheHit: false },
+      'database'
     );
 
     try {
@@ -345,8 +373,11 @@ export class ContentRepository {
 
         if (oldestKey) {
           this.contentCache.delete(oldestKey);
-          console.log(
-            `[ContentRepository] Evicted oldest cache entry (${oldestKey})`
+          this.logger.info(
+            'cache_eviction',
+            'Evicted oldest cache entry due to size limit',
+            { evictedKey: oldestKey, cacheSize: this.contentCache.size },
+            'cache'
           );
         }
       }
@@ -359,9 +390,12 @@ export class ContentRepository {
 
       return parsedResults;
     } catch (error) {
-      console.error(
-        `[ContentRepository] Failed to fetch ${dataType}:`,
-        error instanceof Error ? error.message : String(error)
+      this.logger.error(
+        'db_query_failed',
+        'Failed to fetch content from database',
+        error,
+        { contentType: dataType, cacheKey },
+        'database'
       );
       return [];
     }

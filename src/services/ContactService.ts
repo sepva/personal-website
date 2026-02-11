@@ -1,4 +1,5 @@
 import { retryWithExponentialBackoff } from "@/utils/retry";
+import { createLogger, type Logger } from "@/utils/logger";
 import {
   DEFAULT_MAX_RETRIES,
   DEFAULT_BASE_DELAY_MS,
@@ -28,10 +29,12 @@ export class ContactService {
   private db: D1Database;
   private contactSubmissions: number[] = []; // Timestamps of submissions in current session
   private env: Env;
+  private logger: Logger;
 
   constructor(db: D1Database, env: Env) {
     this.db = db;
     this.env = env;
+    this.logger = createLogger('contact', env);
   }
 
   /**
@@ -45,9 +48,17 @@ export class ContactService {
       maxAttempts: DEFAULT_MAX_RETRIES,
       baseDelayMs: DEFAULT_BASE_DELAY_MS,
       onRetry: (attempt, error, delayMs) => {
-        console.warn(
-          `${operationName} failed (attempt ${attempt}/${DEFAULT_MAX_RETRIES}), retrying in ${delayMs}ms:`,
-          error.message
+        this.logger.warn(
+          'db_retry',
+          `Database operation retry`,
+          {
+            operationName,
+            attempt,
+            maxAttempts: DEFAULT_MAX_RETRIES,
+            delayMs,
+            errorMessage: error.message
+          },
+          'database'
         );
       }
     });
@@ -153,8 +164,14 @@ export class ContactService {
     try {
       // Clean up expired submissions from session tracking
       this.cleanupExpiredSubmissions();
-      console.log(
-        `Current session submissions in last hour: ${this.contactSubmissions.length}`
+      this.logger.debug(
+        'rate_limit_check',
+        'Checking rate limits for contact submission',
+        {
+          email,
+          sessionSubmissionsCount: this.contactSubmissions.length
+        },
+        'ratelimit'
       );
 
       // Get rate limit values from environment variables with defaults
@@ -176,8 +193,16 @@ export class ContactService {
       // 1. Check global rate limit (across all sessions and emails)
       const globalCheck = await this.checkGlobalRateLimit(globalLimit);
       if (globalCheck.exceeded) {
-        console.warn(
-          `Global rate limit reached: ${globalCheck.count} submissions in last hour`
+        this.logger.error(
+          'rate_limit_exceeded',
+          'Global rate limit reached',
+          undefined,
+          {
+            limitType: 'global',
+            currentCount: globalCheck.count,
+            limit: globalLimit
+          },
+          'ratelimit'
         );
         return {
           success: false,
@@ -185,13 +210,34 @@ export class ContactService {
             "Service is currently experiencing high traffic. Please try again later."
         };
       }
-      console.log(
-        `Global submissions in last hour: ${globalCheck.count}/${globalLimit}`
+      this.logger.info(
+        'rate_limit_check',
+        'Global rate limit check passed',
+        {
+          limitType: 'global',
+          currentCount: globalCheck.count,
+          limit: globalLimit,
+          remaining: globalLimit - globalCheck.count,
+          status: 'pass'
+        },
+        'ratelimit'
       );
 
       // 2. Check session-based rate limit
       const sessionCheck = this.checkSessionRateLimit(sessionLimit);
       if (sessionCheck.exceeded) {
+        this.logger.error(
+          'rate_limit_exceeded',
+          'Session rate limit reached',
+          undefined,
+          {
+            limitType: 'session',
+            currentCount: this.contactSubmissions.length,
+            limit: sessionLimit,
+            retryAfter: sessionCheck.minutesUntilAvailable
+          },
+          'ratelimit'
+        );
         return {
           success: false,
           error: `Rate limit reached. Please try again in ${sessionCheck.minutesUntilAvailable} minute${sessionCheck.minutesUntilAvailable !== 1 ? "s" : ""}.`
@@ -201,6 +247,18 @@ export class ContactService {
       // 3. Check email-based rate limit
       const emailCheck = await this.checkEmailRateLimit(email, emailLimit);
       if (emailCheck.exceeded) {
+        this.logger.error(
+          'rate_limit_exceeded',
+          'Email rate limit reached',
+          undefined,
+          {
+            limitType: 'email',
+            email,
+            currentCount: emailCheck.count,
+            limit: emailLimit
+          },
+          'ratelimit'
+        );
         return {
           success: false,
           error: "Rate limit reached. Please try again later."
@@ -224,10 +282,25 @@ export class ContactService {
       // Add to session rate limit tracking
       this.contactSubmissions.push(Date.now());
 
-      console.log(`Contact message saved: ${id} from ${email}`);
+      this.logger.info(
+        'contact_saved',
+        'Contact message saved successfully',
+        {
+          messageId: id,
+          email,
+          messageLength: message.length
+        },
+        'database'
+      );
       return { success: true };
     } catch (error) {
-      console.error("Failed to save contact message:", error);
+      this.logger.error(
+        'contact_save_failed',
+        'Failed to save contact message',
+        error,
+        { email },
+        'database'
+      );
       return {
         success: false,
         error: "Failed to save message. Please try again later."
