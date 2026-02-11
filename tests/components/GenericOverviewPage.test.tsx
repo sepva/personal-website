@@ -27,7 +27,14 @@ vi.mock("../../src/components/modal/Modal", () => ({
 }));
 
 vi.mock("../../src/components/overview-page/OverviewPage", () => ({
-  OverviewPage: ({ title, items, onItemClick, filters, onFilterChange, activeFilter }: any) => (
+  OverviewPage: ({
+    title,
+    items,
+    onItemClick,
+    filters,
+    onFilterChange,
+    activeFilter
+  }: any) => (
     <div data-testid="overview-page">
       <h1>{title}</h1>
       <div>
@@ -90,17 +97,13 @@ describe("GenericOverviewPage", () => {
   });
 
   it("should render with title prop", () => {
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     expect(screen.getByText("Test Overview")).toBeInTheDocument();
   });
 
   it("should display overview page with all items", () => {
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     expect(screen.getByTestId("overview-page")).toBeInTheDocument();
     expect(screen.getByTestId("item-item-1")).toBeInTheDocument();
@@ -109,9 +112,7 @@ describe("GenericOverviewPage", () => {
   });
 
   it("should extract unique tags for filters", () => {
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     // Should have filters for tag1, tag2, tag3
     expect(screen.getByTestId("filter-tag1")).toBeInTheDocument();
@@ -120,9 +121,7 @@ describe("GenericOverviewPage", () => {
   });
 
   it("should filter items by tag when filter is selected", () => {
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     // Click tag1 filter
     const tag1Filter = screen.getByTestId("filter-tag1");
@@ -134,9 +133,7 @@ describe("GenericOverviewPage", () => {
   });
 
   it("should show detail card when item is clicked", async () => {
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     // Click on first item
     const firstItem = screen.getByTestId("item-item-1");
@@ -151,9 +148,7 @@ describe("GenericOverviewPage", () => {
   });
 
   it("should close detail card when back button is clicked", async () => {
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     // Click on item to open detail card
     const firstItem = screen.getByTestId("item-item-1");
@@ -215,9 +210,7 @@ describe("GenericOverviewPage", () => {
   });
 
   it("should use fullContent if available, otherwise description", async () => {
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     // Click first item (has fullContent)
     const firstItem = screen.getByTestId("item-item-1");
@@ -255,9 +248,7 @@ describe("GenericOverviewPage", () => {
     const { useIsMobile } = await import("../../src/hooks/useIsMobile");
     vi.mocked(useIsMobile).mockReturnValue(true);
 
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     // Click on item
     const firstItem = screen.getByTestId("item-item-1");
@@ -276,9 +267,7 @@ describe("GenericOverviewPage", () => {
     const { useIsMobile } = await import("../../src/hooks/useIsMobile");
     vi.mocked(useIsMobile).mockReturnValue(true);
 
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     // Click on item to open modal
     const firstItem = screen.getByTestId("item-item-1");
@@ -300,9 +289,7 @@ describe("GenericOverviewPage", () => {
   });
 
   it("should handle all filter (show all items)", () => {
-    render(
-      <GenericOverviewPage title="Test Overview" data={mockData} />
-    );
+    render(<GenericOverviewPage title="Test Overview" data={mockData} />);
 
     // By default, activeFilter is "all", so all items should be shown
     expect(screen.getByTestId("item-item-1")).toBeInTheDocument();
@@ -329,10 +316,7 @@ describe("GenericOverviewPage", () => {
     ];
 
     render(
-      <GenericOverviewPage
-        title="Test Overview"
-        data={dataWithDuplicateTags}
-      />
+      <GenericOverviewPage title="Test Overview" data={dataWithDuplicateTags} />
     );
 
     // Should only have one "react" filter button (unique tags)
@@ -357,9 +341,7 @@ describe("GenericOverviewPage", () => {
       }
     ];
 
-    rerender(
-      <GenericOverviewPage title="Test Overview" data={newData} />
-    );
+    rerender(<GenericOverviewPage title="Test Overview" data={newData} />);
 
     expect(screen.queryByTestId("item-item-1")).not.toBeInTheDocument();
     expect(screen.getByTestId("item-item-new")).toBeInTheDocument();

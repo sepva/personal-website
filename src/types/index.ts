@@ -10,21 +10,6 @@ import type { ContentItem } from "@/shared";
 // ============================================================================
 
 /**
- * Result from D1Database queries with typed results and metadata
- */
-export interface DatabaseQueryResult<T = unknown> {
-  results: T[];
-  success: boolean;
-  meta?: {
-    duration?: number;
-    rows_read?: number;
-    rows_written?: number;
-    changes?: number;
-    last_row_id?: number;
-  };
-}
-
-/**
  * Generic database row type for count queries
  */
 export interface CountResult {
@@ -63,17 +48,6 @@ export interface ConnectionAttachment {
 // ============================================================================
 
 /**
- * Result of rate limit check
- */
-export interface RateLimitCheckResult {
-  allowed: boolean;
-  remainingAttempts?: number;
-  resetTime?: Date;
-  reason?: string;
-  minutesUntilAvailable?: number;
-}
-
-/**
  * Global rate limit check result
  */
 export interface GlobalRateLimitCheckResult {
@@ -89,14 +63,6 @@ export interface SessionRateLimitCheckResult {
   minutesUntilAvailable?: number;
 }
 
-/**
- * Email rate limit check result
- */
-export interface EmailRateLimitCheckResult {
-  exceeded: boolean;
-  minutesUntilAvailable?: number;
-}
-
 // ============================================================================
 // AI and Vector Types (Env type defined in env.d.ts)
 // ============================================================================
@@ -108,15 +74,6 @@ export interface EmbeddingResult {
   data?: number[][];
   shape?: number[];
   embeddings?: number[][];
-}
-
-/**
- * Vectorize search result with metadata
- */
-export interface VectorSearchMatch {
-  id: string;
-  score: number;
-  metadata?: Record<string, unknown>;
 }
 
 // ============================================================================

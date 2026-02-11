@@ -1,5 +1,5 @@
 import { Modal } from "@/components/modal/Modal";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { createContext, type ReactNode, useState } from "react";
 
 type ModalContextType = {
   isOpen: boolean;
@@ -34,12 +34,4 @@ export const ModalProvider = ({ children }: { children: ReactNode }) => {
       )}
     </ModalContext.Provider>
   );
-};
-
-export const useModal = () => {
-  const context = useContext(ModalContext);
-  if (!context) {
-    throw new Error("useModal must be used within a ModalProvider");
-  }
-  return context;
 };

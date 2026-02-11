@@ -126,8 +126,3 @@ export const API_ENDPOINTS = {
   CONTENT: "/api/content",
   CONTACT: "/api/contact"
 } as const;
-
-/**
- * Type for API endpoint keys
- */
-export type APIEndpoint = (typeof API_ENDPOINTS)[keyof typeof API_ENDPOINTS];

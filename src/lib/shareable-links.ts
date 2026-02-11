@@ -31,7 +31,7 @@ export function buildShareableURL(shareableLink: string): string {
  * @param text - Text to copy
  * @returns Promise that resolves when copy is successful
  */
-export async function copyToClipboard(text: string): Promise<void> {
+async function copyToClipboard(text: string): Promise<void> {
   if (typeof window === "undefined") {
     throw new Error("Clipboard API not available");
   }

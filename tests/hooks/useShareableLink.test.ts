@@ -83,9 +83,7 @@ describe("useShareableLink", () => {
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "/api/content?link=academic-thesis-2023"
-      )
+      expect.stringContaining("/api/content?link=academic-thesis-2023")
     );
     expect(result.current.historyMessages).not.toBeNull();
     expect(result.current.error).toBeNull();
@@ -116,7 +114,10 @@ describe("useShareableLink", () => {
     // Should have user message and bot response with component
     expect(historyMessages).toHaveLength(2);
     expect(historyMessages![0].role).toBe("user");
-    const userPart = historyMessages![0].parts[0] as { type: string; text: string };
+    const userPart = historyMessages![0].parts[0] as {
+      type: string;
+      text: string;
+    };
     expect(userPart.text).toContain("Test Thesis");
     expect(historyMessages![1].role).toBe("assistant");
   });
@@ -175,9 +176,7 @@ describe("useShareableLink", () => {
   it("should handle network errors", async () => {
     window.location.search = "?link=test-link";
 
-    (global.fetch as any).mockRejectedValueOnce(
-      new Error("Network error")
-    );
+    (global.fetch as any).mockRejectedValueOnce(new Error("Network error"));
 
     const { result } = renderHook(() => useShareableLink());
 
@@ -279,7 +278,9 @@ describe("useShareableLink", () => {
     expect(result.current.customMessages[0].type).toBe("bot");
     expect(result.current.customMessages[1].component).toBe("categories");
     expect(result.current.customMessages[2].type).toBe("user");
-    expect(result.current.customMessages[3].component).toBe("AcademicOverviewPage");
+    expect(result.current.customMessages[3].component).toBe(
+      "AcademicOverviewPage"
+    );
 
     // History messages should be separate
     expect(result.current.historyMessages).not.toBeNull();

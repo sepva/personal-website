@@ -388,7 +388,9 @@ describe("useDisplayMessages", () => {
     );
 
     // Should have both text parts + component
-    const textPart1 = result.current.find((msg) => msg.content === "First part");
+    const textPart1 = result.current.find(
+      (msg) => msg.content === "First part"
+    );
     const textPart2 = result.current.find(
       (msg) => msg.content === "Second part"
     );

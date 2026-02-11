@@ -76,7 +76,9 @@ describe("ContentRepository", () => {
     it("should fetch content by type and id", async () => {
       const result = await repository.fetchContentByType("blog", "1");
 
-      expect(mockDb.prepare).toHaveBeenCalledWith("SELECT * FROM blog WHERE id = ?");
+      expect(mockDb.prepare).toHaveBeenCalledWith(
+        "SELECT * FROM blog WHERE id = ?"
+      );
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe("1");
     });
@@ -279,66 +281,66 @@ describe("ContentRepository", () => {
     });
 
     it("should search all data types until finding a match", async () => {
-    // Mock to return results only on third call (projects table)
-    let callCount = 0;
-    mockDb = {
-      prepare: vi.fn().mockImplementation(() => {
-        callCount++;
-        return {
-          bind: vi.fn().mockReturnThis(),
-          all: vi.fn().mockImplementation(() => {
-            if (callCount === 1 || callCount === 2) {
-              // academic and work searches - no results
-              return Promise.resolve({ results: [], success: true });
-            } else if (callCount === 3) {
-              // projects search - found
-              return Promise.resolve({
-                results: [
-                  {
-                    id: "1",
-                    title: "Test Project",
-                    description: "Test description",
-                    type: "project",
-                    tags: JSON.stringify(["tag1"]),
-                    shareable_link: "test-link"
-                  }
-                ],
-                success: true
-              });
-            } else if (callCount === 4) {
-              // Health check from fetchContentByType
-              return Promise.resolve({
-                results: [{ health_check: 1 }],
-                success: true
-              });
-            } else {
-              // fetchContentByType query for all projects
-              return Promise.resolve({
-                results: [
-                  {
-                    id: "1",
-                    title: "Test Project",
-                    description: "Test description",
-                    type: "project",
-                    tags: JSON.stringify(["tag1"]),
-                    shareable_link: "test-link"
-                  }
-                ],
-                success: true
-              });
-            }
-          })
-        };
-      })
-    } as unknown as D1Database;
+      // Mock to return results only on third call (projects table)
+      let callCount = 0;
+      mockDb = {
+        prepare: vi.fn().mockImplementation(() => {
+          callCount++;
+          return {
+            bind: vi.fn().mockReturnThis(),
+            all: vi.fn().mockImplementation(() => {
+              if (callCount === 1 || callCount === 2) {
+                // academic and work searches - no results
+                return Promise.resolve({ results: [], success: true });
+              } else if (callCount === 3) {
+                // projects search - found
+                return Promise.resolve({
+                  results: [
+                    {
+                      id: "1",
+                      title: "Test Project",
+                      description: "Test description",
+                      type: "project",
+                      tags: JSON.stringify(["tag1"]),
+                      shareable_link: "test-link"
+                    }
+                  ],
+                  success: true
+                });
+              } else if (callCount === 4) {
+                // Health check from fetchContentByType
+                return Promise.resolve({
+                  results: [{ health_check: 1 }],
+                  success: true
+                });
+              } else {
+                // fetchContentByType query for all projects
+                return Promise.resolve({
+                  results: [
+                    {
+                      id: "1",
+                      title: "Test Project",
+                      description: "Test description",
+                      type: "project",
+                      tags: JSON.stringify(["tag1"]),
+                      shareable_link: "test-link"
+                    }
+                  ],
+                  success: true
+                });
+              }
+            })
+          };
+        })
+      } as unknown as D1Database;
 
-    repository = new ContentRepository(mockDb, mockAi, mockVectorIndex);
+      repository = new ContentRepository(mockDb, mockAi, mockVectorIndex);
 
-    const result = await repository.fetchContentByShareableLink("test-link");
+      const result = await repository.fetchContentByShareableLink("test-link");
 
-    expect(result.contentItem).not.toBeNull();
-    expect(result.dataType).toBe("projects");
-  });
+      expect(result.contentItem).not.toBeNull();
+      expect(result.dataType).toBe("projects");
+    });
     it("should continue searching if one table throws error", async () => {
       let callCount = 0;
       mockDb = {
@@ -390,34 +392,31 @@ describe("ContentRepository", () => {
       await repository.fetchContentByType("blog");
 
       // Should have called health check query
-      expect(mockDb.prepare).toHaveBeenCalledWith(
-        "SELECT 1 as health_check"
-      );
+      expect(mockDb.prepare).toHaveBeenCalledWith("SELECT 1 as health_check");
     });
 
     it("should revalidate connection after health check interval", async () => {
-    const originalNow = Date.now;
-    let currentTime = 1000000;
-    vi.spyOn(Date, "now").mockImplementation(() => currentTime);
+      const originalNow = Date.now;
+      let currentTime = 1000000;
+      vi.spyOn(Date, "now").mockImplementation(() => currentTime);
 
-    // First query
-    await repository.fetchContentByType("blog");
+      // First query
+      await repository.fetchContentByType("blog");
 
-    // Advance time beyond both cache TTL and health check interval
-    // This ensures cache expires and health check is needed
-    currentTime += Math.max(CACHE_TTL_MS, CONNECTION_HEALTH_CHECK_INTERVAL_MS) + 1000;
+      // Advance time beyond both cache TTL and health check interval
+      // This ensures cache expires and health check is needed
+      currentTime +=
+        Math.max(CACHE_TTL_MS, CONNECTION_HEALTH_CHECK_INTERVAL_MS) + 1000;
 
-    // Clear only the mockDb.prepare calls, not the Date.now spy
-    (mockDb.prepare as any).mockClear();
+      // Clear only the mockDb.prepare calls, not the Date.now spy
+      (mockDb.prepare as any).mockClear();
 
-    // Second query should trigger health check since cache is expired
-    await repository.fetchContentByType("blog");
-    expect(mockDb.prepare).toHaveBeenCalledWith(
-      "SELECT 1 as health_check"
-    );
+      // Second query should trigger health check since cache is expired
+      await repository.fetchContentByType("blog");
+      expect(mockDb.prepare).toHaveBeenCalledWith("SELECT 1 as health_check");
 
-    Date.now = originalNow;
-  });
+      Date.now = originalNow;
+    });
     it("should handle connection validation failure gracefully", async () => {
       // Mock health check to fail
       let callCount = 0;
