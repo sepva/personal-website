@@ -4,9 +4,11 @@
     "types": [
       "@cloudflare/workers-types",
       "@cloudflare/vitest-pool-workers",
+      "@testing-library/jest-dom",
+      "vitest/globals",
       "../env.d.ts"
     ]
   },
-  "include": ["./**/*.ts"],
+  "include": ["./**/*.ts", "./**/*.tsx"],
   "exclude": ["../src"]
 }

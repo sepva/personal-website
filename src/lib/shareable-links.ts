@@ -10,7 +10,7 @@ export function parseShareableLinkFromURL(): string | null {
   if (typeof window === "undefined") return null;
 
   const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get("item");
+  return urlParams.get("link");
 }
 
 /**
@@ -22,7 +22,7 @@ export function buildShareableURL(shareableLink: string): string {
   if (typeof window === "undefined") return "";
 
   const url = new URL(window.location.origin);
-  url.searchParams.set("item", shareableLink);
+  url.searchParams.set("link", shareableLink);
   return url.toString();
 }
 
