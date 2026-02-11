@@ -29,7 +29,10 @@ export const Modal = ({
     if (!isOpen || !clickOutsideToClose) return;
 
     const handleClick = (event: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+      if (
+        modalRef.current &&
+        !modalRef.current.contains(event.target as Node)
+      ) {
         onClose();
       }
     };
@@ -96,15 +99,20 @@ export const Modal = ({
   if (!isOpen) return null;
 
   return (
-    <div className={cn(
-      "fixed top-0 left-0 z-50 flex h-screen w-full bg-transparent",
-      fullScreen ? "" : "items-center justify-center p-6"
-    )}>
+    <div
+      className={cn(
+        "fixed top-0 left-0 z-50 flex h-screen w-full bg-transparent",
+        fullScreen ? "" : "items-center justify-center p-6"
+      )}
+    >
       <div className="fade fixed top-0 left-0 h-full w-full bg-black/5 backdrop-blur-[2px]" />
 
       {fullScreen ? (
         <div
-          className={cn("relative z-50 h-full w-full overflow-y-auto", className)}
+          className={cn(
+            "relative z-50 h-full w-full overflow-y-auto",
+            className
+          )}
           ref={modalRef}
           tabIndex={-1}
         >

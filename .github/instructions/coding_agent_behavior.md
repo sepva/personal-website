@@ -1,6 +1,6 @@
 ---
 description: Comprehensive guidelines for AI coding agent behavior and best practices
-applyTo: '**'
+applyTo: "**"
 ---
 
 # AI Coding Agent Behavior Guidelines
@@ -45,7 +45,6 @@ The following Model Context Protocol (MCP) servers are available to enhance your
   - Use `microsoft_docs_search` to find relevant documentation
   - Use `microsoft_code_sample_search` for code examples
   - Use `microsoft_docs_fetch` to get full documentation pages
-  
 - **`cloudflare-docs`**: Access Cloudflare Workers, Pages, and platform documentation
   - Use `mcp_cloudflare-do_search_cloudflare_documentation` to search Cloudflare docs
   - Use `mcp_cloudflare-do_migrate_pages_to_workers_guide` for migration guidance
@@ -60,7 +59,6 @@ The following Model Context Protocol (MCP) servers are available to enhance your
   - Search issues, pull requests, and code
   - Create and manage issues and PRs
   - Read repository files and commits
-  
 - **`microsoft/playwright-mcp`**: Browser automation and testing
   - Navigate to URLs, take screenshots
   - Interact with web pages (click, fill forms, etc.)
@@ -100,6 +98,7 @@ The following Model Context Protocol (MCP) servers are available to enhance your
 #### When to Use Figma MCP
 
 Use the Figma MCP server whenever:
+
 - Creating new UI components
 - Modifying existing component styles
 - Implementing design system changes
@@ -317,7 +316,7 @@ import { Moon, Sun } from "@phosphor-icons/react";
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     // Implementation
-  },
+  }
 } satisfies ExportedHandler<Env>;
 ```
 
@@ -352,12 +351,12 @@ const getWeather = tool({
   description: "Get weather information for a city",
   inputSchema: z.object({
     city: z.string().describe("The city name"),
-    units: z.enum(["celsius", "fahrenheit"]).optional(),
+    units: z.enum(["celsius", "fahrenheit"]).optional()
   }),
   execute: async ({ city, units = "celsius" }) => {
     // Implementation
     return { temperature: 22, city, units };
-  },
+  }
 });
 
 export const tools = { getWeather } satisfies ToolSet;
@@ -405,7 +404,7 @@ import { cn } from "@/lib/utils";
 /* ✅ GOOD: Apply variants with @variant */
 .btn {
   @apply bg-neutral-100;
-  
+
   @variant interactive {
     @apply hover:bg-neutral-200;
   }
@@ -429,7 +428,7 @@ describe("cleanupMessages", () => {
   it("removes streaming messages", () => {
     const input = [
       { id: "1", parts: [{ state: "complete" }] },
-      { id: "2", parts: [{ state: "input-streaming" }] },
+      { id: "2", parts: [{ state: "input-streaming" }] }
     ];
     const result = cleanupMessages(input);
     expect(result).toHaveLength(1);
@@ -450,7 +449,7 @@ describe("Worker", () => {
     const request = new Request("http://example.com/api");
     const ctx = createExecutionContext();
     const response = await worker.fetch(request, env, ctx);
-    
+
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ success: true });
   });
@@ -465,22 +464,22 @@ describe("Worker", () => {
 // ❌ NEVER do this
 export const Component = () => {
   // ... existing code ...
-  
+
   const newFeature = () => {
     // TODO: implement this
   };
-  
+
   // ... rest of code ...
 };
 
 // ✅ ALWAYS write complete implementations
 export const Component = () => {
   const [state, setState] = useState(false);
-  
+
   const handleToggle = () => {
     setState((prev) => !prev);
   };
-  
+
   return <button onClick={handleToggle}>{state ? "On" : "Off"}</button>;
 };
 ```
@@ -505,7 +504,7 @@ export const Button = ({ onClick, children, disabled }: ButtonProps) => {
     }
     onClick?.(e);
   };
-  
+
   return <button onClick={handleClick}>{children}</button>;
 };
 ```
@@ -593,42 +592,74 @@ await manage_todo_list({
     {
       id: 1,
       title: "Create Button component",
-      description: "Create src/components/button/Button.tsx with TypeScript types",
-      status: "not-started",
+      description:
+        "Create src/components/button/Button.tsx with TypeScript types",
+      status: "not-started"
     },
     {
       id: 2,
       title: "Add Button styles",
-      description: "Add .btn styles to src/styles.css using Tailwind CSS v4 patterns",
-      status: "not-started",
+      description:
+        "Add .btn styles to src/styles.css using Tailwind CSS v4 patterns",
+      status: "not-started"
     },
     {
       id: 3,
       title: "Export from index",
       description: "Re-export Button from src/components/index.ts",
-      status: "not-started",
-    },
-  ],
+      status: "not-started"
+    }
+  ]
 });
 
 // Mark as in-progress when starting
 await manage_todo_list({
   operation: "write",
   todoList: [
-    { id: 1, title: "Create Button component", description: "...", status: "in-progress" },
-    { id: 2, title: "Add Button styles", description: "...", status: "not-started" },
-    { id: 3, title: "Export from index", description: "...", status: "not-started" },
-  ],
+    {
+      id: 1,
+      title: "Create Button component",
+      description: "...",
+      status: "in-progress"
+    },
+    {
+      id: 2,
+      title: "Add Button styles",
+      description: "...",
+      status: "not-started"
+    },
+    {
+      id: 3,
+      title: "Export from index",
+      description: "...",
+      status: "not-started"
+    }
+  ]
 });
 
 // Mark completed IMMEDIATELY after finishing each task
 await manage_todo_list({
   operation: "write",
   todoList: [
-    { id: 1, title: "Create Button component", description: "...", status: "completed" },
-    { id: 2, title: "Add Button styles", description: "...", status: "not-started" },
-    { id: 3, title: "Export from index", description: "...", status: "not-started" },
-  ],
+    {
+      id: 1,
+      title: "Create Button component",
+      description: "...",
+      status: "completed"
+    },
+    {
+      id: 2,
+      title: "Add Button styles",
+      description: "...",
+      status: "not-started"
+    },
+    {
+      id: 3,
+      title: "Export from index",
+      description: "...",
+      status: "not-started"
+    }
+  ]
 });
 ```
 
@@ -646,7 +677,7 @@ await manage_todo_list({
 await Promise.all([
   read_file({ filePath: "src/components/button/Button.tsx" }),
   read_file({ filePath: "src/styles.css" }),
-  semantic_search({ query: "button component patterns" }),
+  semantic_search({ query: "button component patterns" })
 ]);
 
 // ❌ BAD: Sequential, repeated searches
@@ -663,9 +694,11 @@ await read_file({ filePath: "src/styles.css" });
 
 ```markdown
 <!-- ✅ GOOD: Direct and informative -->
+
 Created `Button` component with variants (primary, secondary, ghost) and sizes (sm, md, lg). Added corresponding Tailwind styles using `@theme` and `@variant` patterns.
 
 <!-- ❌ BAD: Overly verbose -->
+
 I have successfully completed the implementation of the Button component as requested. This component now includes multiple variants such as primary, secondary, and ghost, which allow for flexible styling options. Additionally, I have implemented size variants including small, medium, and large to accommodate different use cases. The styling has been done using Tailwind CSS v4 patterns with the @theme directive for design tokens and @variant for conditional styles as specified in the project guidelines.
 ```
 
@@ -675,6 +708,7 @@ When requirements are unclear, **ask questions** instead of inferring:
 
 ```markdown
 <!-- ✅ GOOD: Ask for clarification -->
+
 I can implement the button component in a few ways:
 
 1. **Polymorphic approach**: Use the `as` prop pattern (like existing components)
@@ -684,6 +718,7 @@ I can implement the button component in a few ways:
 Which approach do you prefer? The existing codebase uses #1 for components like Avatar.
 
 <!-- ❌ BAD: Assume and implement -->
+
 I've created a polymorphic Button component using the `as` prop pattern.
 [Implements without checking if this is what the user wants]
 ```
@@ -691,6 +726,7 @@ I've created a polymorphic Button component using the `as` prop pattern.
 ### When to Ask Questions
 
 Ask questions when:
+
 - **Requirements are ambiguous**: "Should this be a client component or server component?"
 - **Multiple valid approaches exist**: "I can implement this using X or Y - which do you prefer?"
 - **Unclear scope**: "Should this handle edge case Z?"
@@ -700,6 +736,7 @@ Ask questions when:
 ### When to Proceed Without Asking
 
 Proceed directly when:
+
 - The requirement is clear and specific
 - There's an established pattern in the codebase
 - It's a minor implementation detail
@@ -708,6 +745,7 @@ Proceed directly when:
 ### Explaining Complex Changes
 
 Always explain when:
+
 - The change is non-obvious or counterintuitive
 - You're making architectural decisions
 - There are tradeoffs to consider
@@ -733,19 +771,23 @@ When there are multiple valid approaches:
 
 ```markdown
 <!-- ✅ GOOD: Present options with context -->
+
 There are two approaches for state management here:
 
 **Option 1: React Context**
+
 - Pros: Simple, built-in, works well for this scope
 - Cons: Can cause unnecessary re-renders
 
 **Option 2: Zustand**
+
 - Pros: Better performance, easier debugging
 - Cons: Additional dependency
 
 Given the current project size, I'd recommend Option 1. What do you think?
 
 <!-- ❌ BAD: Just pick one without discussing -->
+
 I've implemented this using React Context.
 ```
 
@@ -763,7 +805,7 @@ export default {
     // Use pre-initialized encoder/decoder
     const data = encoder.encode("hello");
     return new Response(data);
-  },
+  }
 };
 
 // ❌ BAD: Initialize inside handler
@@ -772,7 +814,7 @@ export default {
     const encoder = new TextEncoder(); // Created on every request
     const data = encoder.encode("hello");
     return new Response(data);
-  },
+  }
 };
 ```
 
@@ -780,10 +822,7 @@ export default {
 
 ```typescript
 // ✅ GOOD: Memoize expensive parsing
-const blocks = useMemo(
-  () => parseMarkdownIntoBlocks(content),
-  [content]
-);
+const blocks = useMemo(() => parseMarkdownIntoBlocks(content), [content]);
 
 // ❌ BAD: Re-parse on every render
 const blocks = parseMarkdownIntoBlocks(content);
@@ -799,17 +838,17 @@ import { z } from "zod/v3";
 
 const UserInputSchema = z.object({
   name: z.string().min(1).max(100),
-  email: z.string().email(),
+  email: z.string().email()
 });
 
 export default {
   async fetch(request: Request, env: Env) {
     const body = await request.json();
     const validated = UserInputSchema.parse(body); // Throws if invalid
-    
+
     // Safe to use validated data
     return Response.json({ success: true });
-  },
+  }
 };
 
 // ❌ BAD: Trust user input directly
@@ -818,7 +857,7 @@ export default {
     const body = await request.json();
     // Directly use body.name without validation
     return Response.json({ name: body.name });
-  },
+  }
 };
 ```
 
@@ -830,10 +869,10 @@ export default {
   async fetch(request: Request, env: Env) {
     const apiKey = env.API_KEY; // From environment
     const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers: { Authorization: `Bearer ${apiKey}` }
     });
     return response;
-  },
+  }
 };
 
 // ❌ NEVER do this
@@ -888,6 +927,7 @@ Before considering a task complete:
 > **The goal is to be a collaborative senior-level coding partner**: ask questions when needed, write production-quality code, follow established patterns, communicate concisely, and work together to find the best solution.
 
 When in doubt:
+
 1. **Ask questions** - don't assume or infer too much
 2. Search the codebase for existing patterns
 3. Use MCP servers for documentation and external context

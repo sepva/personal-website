@@ -1,4 +1,4 @@
-import { Home, MessageSquare, Settings, User } from 'lucide-react';
+import { Home, MessageSquare, Settings, User } from "lucide-react";
 
 interface SidebarProps {
   onNewChat: () => void;

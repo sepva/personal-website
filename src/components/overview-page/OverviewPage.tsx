@@ -1,6 +1,6 @@
-import { ContentTile } from '../content-tile/ContentTile';
-import { FilterBar } from '../filter-bar/FilterBar';
-import type { ContentItem } from '@/shared';
+import { ContentTile } from "../content-tile/ContentTile";
+import { FilterBar } from "../filter-bar/FilterBar";
+import type { ContentItem } from "@/shared";
 
 interface OverviewPageProps {
   title: string;
@@ -23,15 +23,15 @@ export function OverviewPage({
     <div className="bg-[#16181D] border border-[#2F323D] rounded-[16px] p-[24px] shadow-[0_12px_24px_rgba(0,0,0,0.08)] max-w-[95%] w-full">
       <div className="flex items-center justify-between mb-[24px] flex-wrap gap-[16px]">
         <h2 className="text-[#FAFAFA]">{title}</h2>
-        <div className="text-[#6B7280]" style={{ fontSize: '14px' }}>
-          {items.length} {items.length === 1 ? 'item' : 'items'}
+        <div className="text-[#6B7280]" style={{ fontSize: "14px" }}>
+          {items.length} {items.length === 1 ? "item" : "items"}
         </div>
       </div>
 
       {filters && onFilterChange && (
         <FilterBar
           filters={filters}
-          activeFilter={activeFilter || 'all'}
+          activeFilter={activeFilter || "all"}
           onFilterChange={onFilterChange}
         />
       )}
@@ -50,8 +50,9 @@ export function OverviewPage({
         ))}
       </div>
 
-      <style dangerouslySetInnerHTML={{
-        __html: `
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
           .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
           }
@@ -67,7 +68,8 @@ export function OverviewPage({
             background: #5560FF;
           }
         `
-      }} />
+        }}
+      />
     </div>
   );
 }

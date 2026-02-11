@@ -10,7 +10,10 @@ interface ProfessionalProjectsOverviewPageProps {
  * Wrapper component for professional projects overview.
  * Uses GenericOverviewPage to eliminate code duplication.
  */
-export function ProfessionalProjectsOverviewPage({ data, initialEnlargedItemId }: ProfessionalProjectsOverviewPageProps) {
+export function ProfessionalProjectsOverviewPage({
+  data,
+  initialEnlargedItemId
+}: ProfessionalProjectsOverviewPageProps) {
   return (
     <GenericOverviewPage
       title="Professional Projects Overview"

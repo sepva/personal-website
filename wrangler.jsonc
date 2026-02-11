@@ -3,88 +3,84 @@
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "personal-website",
-	"main": "src/server.ts",
-	"compatibility_date": "2025-08-03",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
-	"ai": {
-		"binding": "AI",
-		"remote": true
-	},
-	"assets": {
-		"directory": "dist/client"
-	},
-	"durable_objects": {
-		"bindings": [
-			{
-				"name": "Chat",
-				"class_name": "Chat"
-			}
-		]
-	},
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "personal-website-db",
-			"database_id": "429101e1-40b1-43dc-adf4-c97feb30f26d",
-			"remote": true
-		}
-	],
-	"vectorize": [
-		{
-			"binding": "VECTOR_INDEX",
-			"index_name": "personal-website-index",
-			"remote": true
-		}
-	],
-	"migrations": [
-		{
-			"tag": "v1",
-			"new_sqlite_classes": [
-				"Chat"
-			]
-		}
-	],
-	"observability": {
-		"enabled": true
-	},
-	"vars": {
-		"RATE_LIMIT_GLOBAL_PER_HOUR": "100",
-		"RATE_LIMIT_SESSION_PER_HOUR": "3",
-		"RATE_LIMIT_EMAIL_PER_HOUR": "3",
-		"MAX_HISTORY_MESSAGES": "20"
-	}
-	/**
-	 * Smart Placement
-	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-	 */
-	// "placement": { "mode": "smart" }
-	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
-	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-	 */
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 */
-	// "vars": { "MY_VARIABLE": "production_value" }
-	/**
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
-	/**
-	 * Static Assets
-	 * https://developers.cloudflare.com/workers/static-assets/binding/
-	 */
-	// "assets": { "directory": "./public/", "binding": "ASSETS" }
-	/**
-	 * Service Bindings (communicate between multiple Workers)
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-	 */
-	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "personal-website",
+  "main": "src/server.ts",
+  "compatibility_date": "2025-08-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "assets": {
+    "directory": "dist/client"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "Chat",
+        "class_name": "Chat"
+      }
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "personal-website-db",
+      "database_id": "429101e1-40b1-43dc-adf4-c97feb30f26d",
+      "remote": true
+    }
+  ],
+  "vectorize": [
+    {
+      "binding": "VECTOR_INDEX",
+      "index_name": "personal-website-index",
+      "remote": true
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Chat"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "RATE_LIMIT_GLOBAL_PER_HOUR": "100",
+    "RATE_LIMIT_SESSION_PER_HOUR": "3",
+    "RATE_LIMIT_EMAIL_PER_HOUR": "3",
+    "MAX_HISTORY_MESSAGES": "20"
+  }
+  /**
+   * Smart Placement
+   * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+   */
+  // "placement": { "mode": "smart" }
+  /**
+   * Bindings
+   * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
+   * databases, object storage, AI inference, real-time communication and more.
+   * https://developers.cloudflare.com/workers/runtime-apis/bindings/
+   */
+  /**
+   * Environment Variables
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+   */
+  // "vars": { "MY_VARIABLE": "production_value" }
+  /**
+   * Note: Use secrets to store sensitive data.
+   * https://developers.cloudflare.com/workers/configuration/secrets/
+   */
+  /**
+   * Static Assets
+   * https://developers.cloudflare.com/workers/static-assets/binding/
+   */
+  // "assets": { "directory": "./public/", "binding": "ASSETS" }
+  /**
+   * Service Bindings (communicate between multiple Workers)
+   * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
+   */
+  // "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
 }

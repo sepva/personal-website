@@ -8,8 +8,6 @@ import type {
 } from "ai";
 import { convertToModelMessages, isToolUIPart } from "ai";
 
-
-
 /**
  * Processes tool invocations automatically, executing tools as soon as input is available.
  */

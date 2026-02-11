@@ -1,7 +1,7 @@
-import { ExternalLink, Calendar, Tag, X, Share2, Check } from 'lucide-react';
-import { useState } from 'react';
-import { MemoizedMarkdown } from '../memoized-markdown';
-import { buildShareableURL, shareContent } from '../../lib/shareable-links';
+import { ExternalLink, Calendar, Tag, X, Share2, Check } from "lucide-react";
+import { useState } from "react";
+import { MemoizedMarkdown } from "../memoized-markdown";
+import { buildShareableURL, shareContent } from "../../lib/shareable-links";
 
 interface DetailCardProps {
   title: string;
@@ -24,23 +24,25 @@ export function DetailCard({
   shareable_link,
   onBack
 }: DetailCardProps) {
-  const [shareStatus, setShareStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [shareStatus, setShareStatus] = useState<"idle" | "success" | "error">(
+    "idle"
+  );
 
   const handleShare = async () => {
     if (!shareable_link) return;
-    
+
     try {
       const url = buildShareableURL(shareable_link);
       await shareContent(url, title);
-      setShareStatus('success');
-      setTimeout(() => setShareStatus('idle'), 2000);
+      setShareStatus("success");
+      setTimeout(() => setShareStatus("idle"), 2000);
     } catch (err) {
       // If user cancelled, don't show error
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (err instanceof Error && err.name === "AbortError") {
         return;
       }
-      setShareStatus('error');
-      setTimeout(() => setShareStatus('idle'), 2000);
+      setShareStatus("error");
+      setTimeout(() => setShareStatus("idle"), 2000);
     }
   };
 
@@ -59,7 +61,7 @@ export function DetailCard({
               <X size={24} />
             </button>
           </div>
-          
+
           {/* Desktop: Absolute positioned button (original behavior) */}
           <button
             onClick={onBack}
@@ -70,12 +72,15 @@ export function DetailCard({
           </button>
         </>
       )}
-      
+
       {/* Content area with padding for mobile */}
       <div className="p-[24px] md:p-0">
         <h2 className="text-[#FAFAFA] mb-[16px]">{title}</h2>
-        
-        <div className="flex flex-wrap gap-[16px] mb-[20px] text-[#6B7280]" style={{ fontSize: '14px' }}>
+
+        <div
+          className="flex flex-wrap gap-[16px] mb-[20px] text-[#6B7280]"
+          style={{ fontSize: "14px" }}
+        >
           {date && (
             <div className="flex items-center gap-[8px]">
               <Calendar size={16} />
@@ -83,9 +88,9 @@ export function DetailCard({
             </div>
           )}
           {link && (
-            <a 
-              href={link} 
-              target="_blank" 
+            <a
+              href={link}
+              target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-[8px] hover:text-[#5560FF] transition-colors"
             >
@@ -99,7 +104,7 @@ export function DetailCard({
               className="flex items-center gap-[8px] hover:text-[#5560FF] transition-colors"
               aria-label="Share this content"
             >
-              {shareStatus === 'success' ? (
+              {shareStatus === "success" ? (
                 <>
                   <Check size={16} />
                   <span>Copied!</span>
@@ -125,9 +130,9 @@ export function DetailCard({
               <span
                 key={idx}
                 className="px-[12px] py-[6px] rounded-[8px] text-[#D1D5DB] border border-[#2F323D]"
-                style={{ 
-                  fontSize: '14px',
-                  backgroundColor: 'rgba(85, 96, 255, 0.1)'
+                style={{
+                  fontSize: "14px",
+                  backgroundColor: "rgba(85, 96, 255, 0.1)"
                 }}
               >
                 {tag}

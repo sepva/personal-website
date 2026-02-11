@@ -1,6 +1,6 @@
 ---
 description: Personal website project coding standards and best practices
-applyTo: 'src/**/*.{ts,tsx}'
+applyTo: "src/**/*.{ts,tsx}"
 ---
 
 # Personal Website Project Guidelines
@@ -51,7 +51,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 ```typescript
 export const tools = {
   getWeatherInformation,
-  getLocalTime,
+  getLocalTime
 } satisfies ToolSet;
 
 export default {
@@ -268,13 +268,13 @@ Define reusable design tokens in CSS using `@theme`:
   /* Custom text sizes */
   --text-xs: 10px;
   --text-xs--line-height: calc(1 / 0.5);
-  
+
   /* Custom colors */
   --color-neutral-850: oklch(0.23 0 0);
-  
+
   /* Custom easing */
   --ease-bounce: cubic-bezier(0.2, 0, 0, 1.5);
-  
+
   /* Custom animations */
   --animate-refresh: refresh 0.5s ease-in-out infinite;
 }
@@ -296,10 +296,10 @@ Apply them using `@variant`:
 ```css
 .btn {
   @apply border-ob-btn-secondary-border bg-ob-btn-secondary-bg;
-  
+
   @variant interactive {
     @apply not-disabled:hover:bg-ob-btn-secondary-bg-hover;
-    
+
     @variant toggle {
       @apply not-disabled:bg-ob-btn-secondary-bg-hover;
     }
@@ -312,12 +312,24 @@ Apply them using `@variant`:
 Use semantic naming for component base classes:
 
 ```css
-.btn { /* base button styles */ }
-.add-focus { /* reusable focus styles */ }
-.add-disable { /* reusable disabled styles */ }
-.add-size-sm { /* small size variant */ }
-.add-size-md { /* medium size variant */ }
-.add-size-base { /* base/default size variant */ }
+.btn {
+  /* base button styles */
+}
+.add-focus {
+  /* reusable focus styles */
+}
+.add-disable {
+  /* reusable disabled styles */
+}
+.add-size-sm {
+  /* small size variant */
+}
+.add-size-md {
+  /* medium size variant */
+}
+.add-size-base {
+  /* base/default size variant */
+}
 ```
 
 ### className Utility Pattern
@@ -530,26 +542,30 @@ import type { StreamTextOnFinishCallback, ToolSet } from "ai";
 
 export class Chat extends AIChatAgent<Env> {
   // In-memory cache for database results with TTL
-  private contentCache: Map<string, { data: ContentItem[]; timestamp: number }> = new Map();
+  private contentCache: Map<
+    string,
+    { data: ContentItem[]; timestamp: number }
+  > = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-  
+
   // Rate limiting for contact form
   private contactSubmissions: number[] = [];
-  
+
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
     // Implementation
   }
-  
+
   async executeTask(description: string, _task: Schedule<string>) {
     // Scheduled task implementation
   }
-  
+
   async onConnect(connection: any) {
     // Initialize database tables (e.g., contact_messages)
-    await this.env.DB.prepare(`
+    await this.env.DB.prepare(
+      `
       CREATE TABLE IF NOT EXISTS contact_messages (
         id TEXT,
         email TEXT,
@@ -557,7 +573,8 @@ export class Chat extends AIChatAgent<Env> {
         message TEXT,
         timestamp TEXT
       )
-    `).run();
+    `
+    ).run();
   }
 }
 ```
@@ -582,17 +599,21 @@ Implement rate limiting in the Durable Object:
 // Check session-level rate limit (in-memory)
 const now = Date.now();
 const oneHourAgo = now - 60 * 60 * 1000;
-this.contactSubmissions = this.contactSubmissions.filter(t => t > oneHourAgo);
+this.contactSubmissions = this.contactSubmissions.filter((t) => t > oneHourAgo);
 
 if (this.contactSubmissions.length >= this.env.RATE_LIMIT_SESSION_PER_HOUR) {
   throw new Error("Rate limit exceeded");
 }
 
 // Check email-level rate limit (database)
-const emailCount = await this.env.DB.prepare(`
+const emailCount = await this.env.DB.prepare(
+  `
   SELECT COUNT(*) as count FROM contact_messages
   WHERE email = ? AND timestamp > datetime('now', '-1 hour')
-`).bind(email).first();
+`
+)
+  .bind(email)
+  .first();
 
 if (emailCount.count >= this.env.RATE_LIMIT_EMAIL_PER_HOUR) {
   throw new Error("Rate limit exceeded for this email");
@@ -673,9 +694,11 @@ const stream = createUIMessageStream({
       model,
       messages: convertToModelMessages(processedMessages),
       tools: allTools,
-      onFinish: onFinish as unknown as StreamTextOnFinishCallback<typeof allTools>
+      onFinish: onFinish as unknown as StreamTextOnFinishCallback<
+        typeof allTools
+      >
     });
-    
+
     writer.merge(result.toUIMessageStream());
   }
 });
@@ -696,16 +719,10 @@ const agent = useAgent({
   agent: "chat" // matches Durable Object binding name
 });
 
-const {
-  messages,
-  addToolResult,
-  clearHistory,
-  status,
-  sendMessage,
-  stop
-} = useAgentChat<unknown, UIMessage<{ createdAt: string }>>({
-  agent
-});
+const { messages, addToolResult, clearHistory, status, sendMessage, stop } =
+  useAgentChat<unknown, UIMessage<{ createdAt: string }>>({
+    agent
+  });
 ```
 
 ## Code Organization
@@ -849,7 +866,7 @@ Remove incomplete tool calls before API requests:
 export function cleanupMessages(messages: UIMessage[]): UIMessage[] {
   return messages.filter((message) => {
     if (!message.parts) return true;
-    
+
     const hasIncompleteToolCall = message.parts.some((part) => {
       if (!isToolUIPart(part)) return false;
       return (
@@ -857,7 +874,7 @@ export function cleanupMessages(messages: UIMessage[]): UIMessage[] {
         (part.state === "input-available" && !part.output && !part.errorText)
       );
     });
-    
+
     return !hasIncompleteToolCall;
   });
 }
@@ -870,7 +887,7 @@ Use functional updates and lazy initialization:
 ```typescript
 // Lazy initialization
 const [theme, setTheme] = useState<"dark" | "light">(() => {
-  return localStorage.getItem("theme") as "dark" | "light" || "dark";
+  return (localStorage.getItem("theme") as "dark" | "light") || "dark";
 });
 
 // Functional updates
@@ -914,7 +931,7 @@ describe("Worker", () => {
     const ctx = createExecutionContext();
     const response = await worker.fetch(request, env, ctx);
     await waitOnExecutionContext(ctx);
-    
+
     expect(response.status).toBe(404);
     expect(await response.text()).toBe("Not found");
   });
@@ -981,7 +998,10 @@ export async function processToolCalls<Tools extends ToolSet>({
   tools: Tools;
   dataStream: UIMessageStreamWriter;
   messages: UIMessage[];
-  executions: Record<string, (args: any, context: ToolCallOptions) => Promise<unknown>>;
+  executions: Record<
+    string,
+    (args: any, context: ToolCallOptions) => Promise<unknown>
+  >;
 }): Promise<UIMessage[]> {
   // Implementation
 }
@@ -994,7 +1014,7 @@ Explain non-obvious code:
 ```typescript
 // Type boundary: streamText expects specific tool types, but base class uses ToolSet
 // This is safe because our tools satisfy ToolSet interface
-onFinish: onFinish as unknown as StreamTextOnFinishCallback<typeof allTools>
+onFinish: onFinish as unknown as StreamTextOnFinishCallback<typeof allTools>;
 ```
 
 ## Common Patterns Summary
@@ -1053,11 +1073,11 @@ MemoizedComponent.displayName = "MemoizedComponent";
 ```typescript
 const useCustomHook = (dependency: string) => {
   const [state, setState] = useState();
-  
+
   useEffect(() => {
     // Side effect
   }, [dependency]);
-  
+
   return state;
 };
 

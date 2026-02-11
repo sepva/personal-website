@@ -48,13 +48,17 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
     - Valid follow-up: "What interests you most?" or "Feel free to ask about any of these!"
     - Invalid follow-up: Repeating the message or listing what's already visible in the UI`,
     inputSchema: z.object({
-      message: z.string().describe("Brief introduction message (1-2 sentences) that appears above the academic overview component")
+      message: z
+        .string()
+        .describe(
+          "Brief introduction message (1-2 sentences) that appears above the academic overview component"
+        )
     }),
     execute: async ({ message }) => {
-      const data = await fetchContent('academic');
+      const data = await fetchContent("academic");
       // Return a serializable object that indicates a component should be rendered
       return {
-        type: 'react-component',
+        type: "react-component",
         data,
         componentName: COMPONENT_NAMES.ACADEMIC_OVERVIEW,
         message: message
@@ -89,13 +93,17 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
     - Valid follow-up: "What interests you most?" or "Want to hear more about any specific project?"
     - Invalid follow-up: Repeating the message or listing projects already visible in the UI`,
     inputSchema: z.object({
-      message: z.string().describe("Brief introduction message (1-2 sentences) that appears above the professional projects component")
+      message: z
+        .string()
+        .describe(
+          "Brief introduction message (1-2 sentences) that appears above the professional projects component"
+        )
     }),
     execute: async ({ message }) => {
-      const data = await fetchContent('work');
+      const data = await fetchContent("work");
       // Return a serializable object that indicates a component should be rendered
       return {
-        type: 'react-component',
+        type: "react-component",
         data,
         componentName: COMPONENT_NAMES.PROFESSIONAL_PROJECTS_OVERVIEW,
         message: message
@@ -130,13 +138,17 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
     - Valid follow-up: "Which one catches your eye?" or "Seppe's always open to collaboration!"
     - Invalid follow-up: Repeating the message or listing projects already visible in the UI`,
     inputSchema: z.object({
-      message: z.string().describe("Brief introduction message (1-2 sentences) that appears above the personal projects component")
+      message: z
+        .string()
+        .describe(
+          "Brief introduction message (1-2 sentences) that appears above the personal projects component"
+        )
     }),
     execute: async ({ message }) => {
-      const data = await fetchContent('projects');
+      const data = await fetchContent("projects");
       // Return a serializable object that indicates a component should be rendered
       return {
-        type: 'react-component',
+        type: "react-component",
         data,
         componentName: COMPONENT_NAMES.PERSONAL_PROJECTS_OVERVIEW,
         message: message
@@ -178,13 +190,25 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
     - If results are insufficient, you can call again with a refined query
     - If no relevant results found, be honest and offer to explore related topics`,
     inputSchema: z.object({
-      query: z.string().min(1, "Query must be at least 1 character long").describe("Natural language search query to find relevant information about Seppe"),
-      topK: z.number().min(1).max(10).default(3).describe("Number of relevant documents to return (3-5 for focused queries, 5-10 for comprehensive coverage)")
+      query: z
+        .string()
+        .min(1, "Query must be at least 1 character long")
+        .describe(
+          "Natural language search query to find relevant information about Seppe"
+        ),
+      topK: z
+        .number()
+        .min(1)
+        .max(10)
+        .default(3)
+        .describe(
+          "Number of relevant documents to return (3-5 for focused queries, 5-10 for comprehensive coverage)"
+        )
     }),
     execute: async ({ query, topK }) => {
       const results = await vectorSearch(query, topK);
       return {
-        type: 'vector-search-results',
+        type: "vector-search-results",
         data: results,
         message: `Found ${results.length} relevant documents for query: "${query}"`
       };
@@ -224,11 +248,15 @@ export function tools(fetchContent: FetchContent, vectorSearch: VectorSearch) {
     - Example: "I'd be happy to connect you with Seppe. Here's a contact form where you can send him a message directly:"
     - The message appears ABOVE the form automatically - don't repeat it after calling the tool`,
     inputSchema: z.object({
-      message: z.string().describe("Brief contextual message (1-2 sentences) explaining why you're showing the contact form. Appears above the form automatically.")
+      message: z
+        .string()
+        .describe(
+          "Brief contextual message (1-2 sentences) explaining why you're showing the contact form. Appears above the form automatically."
+        )
     }),
     execute: async ({ message }) => {
       return {
-        type: 'react-component',
+        type: "react-component",
         data: {},
         componentName: COMPONENT_NAMES.CONTACT_FORM,
         message: message

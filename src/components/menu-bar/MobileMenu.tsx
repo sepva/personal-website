@@ -1,5 +1,5 @@
-import { Menu, X, MessageSquare, Home, User, Settings } from 'lucide-react';
-import { useState } from 'react';
+import { Menu, X, MessageSquare, Home, User, Settings } from "lucide-react";
+import { useState } from "react";
 
 interface MobileMenuProps {
   onNewChat: () => void;
@@ -26,7 +26,10 @@ export function MobileMenu({ onNewChat }: MobileMenuProps) {
           <div className="fixed left-0 top-0 bottom-0 w-[280px] bg-[#16181D] border-r border-[#2F323D] z-50 md:hidden">
             <div className="p-[24px] border-b border-[#2F323D] flex items-center justify-between">
               <h2 className="text-[#FAFAFA]">Portfolio AI</h2>
-              <button onClick={() => setIsOpen(false)} className="text-[#D1D5DB]">
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-[#D1D5DB]"
+              >
                 <X size={24} />
               </button>
             </div>

@@ -5,8 +5,9 @@ An innovative personal portfolio and CV for **Seppe Vanswegenoven** presented th
 ## 🎯 Project Overview
 
 This website serves as a comprehensive online presence, showcasing:
+
 - **Personal Projects** - Side projects and personal development work
-- **Academic Achievements** - Education, research, and scholarly accomplishments  
+- **Academic Achievements** - Education, research, and scholarly accomplishments
 - **Professional Experience** - Career history and professional projects
 - **Interactive Content** - Rich UI components and overview pages rendered dynamically within chat responses
 - **Conversation-Driven Discovery** - Ask the AI agent anything about your experience, skills, and work
@@ -16,6 +17,7 @@ This website serves as a comprehensive online presence, showcasing:
 All portfolio content (projects, academic work, professional experience) is managed in a separate repository: **[sepva/personal-website-rag](https://github.com/sepva/personal-website-rag)**
 
 That repository contains:
+
 - Markdown content files organized by type (projects, academic, work, blogs)
 - Cloudflare Workflow for automated content synchronization
 - Image CDN transformation (converts local paths to GitHub raw URLs)
@@ -58,6 +60,7 @@ The AI agent uses custom tools to fetch relevant content and can render React co
 ## 🛠️ Technology Stack
 
 ### Backend
+
 - **Cloudflare Workers** - Serverless edge computing platform
 - **Cloudflare D1** - SQLite database at the edge for content storage
 - **Cloudflare Durable Objects** - Stateful serverless for persistent chat sessions
@@ -69,6 +72,7 @@ The AI agent uses custom tools to fetch relevant content and can render React co
 - **OpenAI GPT-4o** - Primary language model for chat
 
 ### Frontend
+
 - **React 19** - UI framework with latest features
 - **TypeScript** - Full type-safe development
 - **Tailwind CSS 4** - Utility-first styling
@@ -79,6 +83,7 @@ The AI agent uses custom tools to fetch relevant content and can render React co
 - **Sonner** - Toast notifications
 
 ### Development & Quality
+
 - **Biome 2** - Fast linting and formatting
 - **Vitest** - Unit testing framework
 - **Wrangler 4** - Cloudflare development CLI
@@ -232,11 +237,11 @@ interface ContentItem {
   id: string;
   title: string;
   description: string;
-  tags?: string[];           // Stored as JSON string in D1
+  tags?: string[]; // Stored as JSON string in D1
   link?: string;
-  type: 'project' | 'blog' | 'academic' | 'work';
+  type: "project" | "blog" | "academic" | "work";
   date?: string;
-  fullContent?: string;      // Full markdown content
+  fullContent?: string; // Full markdown content
 }
 ```
 
@@ -244,11 +249,11 @@ Additionally, a **`contact_messages` table** stores visitor messages:
 
 ```typescript
 interface ContactMessage {
-  id: string;          // Unique message ID
-  email: string;       // Sender email
-  name: string;        // Sender name
-  message: string;     // Message content
-  timestamp: string;   // ISO timestamp
+  id: string; // Unique message ID
+  email: string; // Sender email
+  name: string; // Sender name
+  message: string; // Message content
+  timestamp: string; // ISO timestamp
 }
 ```
 
@@ -285,6 +290,7 @@ Five custom tools are defined in [src/tools.ts](src/tools.ts) that give the AI a
    - Rate limits configured via environment variables in `wrangler.jsonc`
 
 Each tool:
+
 1. Accepts parameters from the AI's reasoning
 2. Fetches data from D1 database (with 5-minute TTL caching for content tools)
 3. Returns React component specifications for inline rendering in chat
@@ -316,6 +322,7 @@ The agent behavior is controlled by:
 ### Session Management
 
 Each visitor gets a unique session ID that maps to a Durable Object instance:
+
 - Persistent across page reloads (stored in sessionStorage)
 - Maintains chat history and conversation context
 - In-memory caching with configurable TTL
@@ -370,6 +377,7 @@ Configure with `LANGSMITH_API_KEY` in `.dev.vars` for production tracing.
 7. **Contact engagement** - When appropriate, the AI can show a contact form for direct messaging
 
 The agent has **5 specialized tools**:
+
 - 3 content overview tools (academic, professional, personal projects)
 - 1 semantic search tool (vector-based search across all content)
 - 1 contact form tool (for visitor engagement with rate limiting)

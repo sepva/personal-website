@@ -1,5 +1,5 @@
-import { Mail, Phone, Github, Linkedin } from 'lucide-react';
-import { ImageWithFallback } from '../image-with-fallback/ImageWithFallback';
+import { Mail, Phone, Github, Linkedin } from "lucide-react";
+import { ImageWithFallback } from "../image-with-fallback/ImageWithFallback";
 
 interface ContactInfo {
   phone?: string;
@@ -35,8 +35,10 @@ export function Header({ name, photoUrl, contactInfo }: HeaderProps) {
 
         {/* Name and Contact Info */}
         <div className="flex-1">
-          <h1 className="text-[#FAFAFA] text-[20px] md:text-[24px] mb-[8px]">{name}</h1>
-          
+          <h1 className="text-[#FAFAFA] text-[20px] md:text-[24px] mb-[8px]">
+            {name}
+          </h1>
+
           <div className="flex flex-wrap gap-[12px] md:gap-[16px]">
             {contactInfo.email && (
               <a
@@ -47,7 +49,7 @@ export function Header({ name, photoUrl, contactInfo }: HeaderProps) {
                 <span className="text-[14px]">{contactInfo.email}</span>
               </a>
             )}
-            
+
             {contactInfo.phone && (
               <a
                 href={`tel:${contactInfo.phone}`}
@@ -57,7 +59,7 @@ export function Header({ name, photoUrl, contactInfo }: HeaderProps) {
                 <span className="text-[14px]">{contactInfo.phone}</span>
               </a>
             )}
-            
+
             {contactInfo.github && (
               <a
                 href={`https://github.com/${contactInfo.github}`}
@@ -69,7 +71,7 @@ export function Header({ name, photoUrl, contactInfo }: HeaderProps) {
                 <Github size={24} />
               </a>
             )}
-            
+
             {contactInfo.linkedin && (
               <a
                 href={`https://linkedin.com/in/${contactInfo.linkedin}`}

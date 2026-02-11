@@ -1,13 +1,13 @@
 import { useState } from "react";
 import type { ToolUIPart } from "ai";
 
-export function ToolInvocationCard({ toolUIPart, toolCallId }: { toolUIPart: ToolUIPart; toolCallId: string }) {
-
-
-
-
-
-
+export function ToolInvocationCard({
+  toolUIPart,
+  toolCallId
+}: {
+  toolUIPart: ToolUIPart;
+  toolCallId: string;
+}) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   // Inline helper for result content
@@ -20,10 +20,7 @@ export function ToolInvocationCard({ toolUIPart, toolCallId }: { toolUIPart: Too
     ) {
       return (result as any).content
         .map((item: { type: string; text: string }) => {
-          if (
-            item.type === "text" &&
-            item.text.startsWith("\n~ Page URL:")
-          ) {
+          if (item.type === "text" && item.text.startsWith("\n~ Page URL:")) {
             const lines = item.text.split("\n").filter(Boolean);
             return lines
               .map((line: string) => `- ${line.replace("\n~ ", "")}`)

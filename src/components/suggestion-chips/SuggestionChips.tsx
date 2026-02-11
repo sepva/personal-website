@@ -3,7 +3,10 @@ interface SuggestionChipsProps {
   onSelect: (suggestion: string) => void;
 }
 
-export function SuggestionChips({ suggestions, onSelect }: SuggestionChipsProps) {
+export function SuggestionChips({
+  suggestions,
+  onSelect
+}: SuggestionChipsProps) {
   return (
     <div className="flex flex-wrap gap-[8px]">
       {suggestions.map((suggestion, idx) => (

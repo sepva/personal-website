@@ -10,7 +10,10 @@ interface AcademicOverviewPageProps {
  * Wrapper component for academic work overview.
  * Uses GenericOverviewPage to eliminate code duplication.
  */
-export function AcademicOverviewPage({ data, initialEnlargedItemId }: AcademicOverviewPageProps) {
+export function AcademicOverviewPage({
+  data,
+  initialEnlargedItemId
+}: AcademicOverviewPageProps) {
   return (
     <GenericOverviewPage
       title="Academic Work Overview"

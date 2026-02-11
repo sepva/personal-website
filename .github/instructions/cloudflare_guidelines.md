@@ -1,6 +1,6 @@
 ---
 description: Cloudflare Workers and Agents development guidelines
-applyTo: '**'
+applyTo: "**"
 ---
 
 # Cloudflare Workers Development Guidelines
@@ -153,13 +153,13 @@ export class WebSocketHibernationServer extends DurableObject {
   async fetch(request) {
     const webSocketPair = new WebSocketPair();
     const [client, server] = Object.values(webSocketPair);
-    
+
     // Use this.ctx.acceptWebSocket, NOT server.accept()
     this.ctx.acceptWebSocket(server);
-    
+
     return new Response(null, {
       status: 101,
-      webSocket: client,
+      webSocket: client
     });
   }
 
@@ -167,7 +167,12 @@ export class WebSocketHibernationServer extends DurableObject {
     ws.send(`Echo: ${message}`);
   }
 
-  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+  async webSocketClose(
+    ws: WebSocket,
+    code: number,
+    reason: string,
+    wasClean: boolean
+  ) {
     ws.close(code, "Closing");
   }
 
@@ -185,23 +190,23 @@ export class WebSocketHibernationServer extends DurableObject {
 Use Workers KV for session storage with Hono router:
 
 ```typescript
-import { Hono } from 'hono'
-import { cors } from 'hono/cors'
+import { Hono } from "hono";
+import { cors } from "hono/cors";
 
 interface Env {
   AUTH_TOKENS: KVNamespace;
 }
 
-const app = new Hono<{ Bindings: Env }>()
-app.use('*', cors())
+const app = new Hono<{ Bindings: Env }>();
+app.use("*", cors());
 
-app.get('/', async (c) => {
-  const token = c.req.header('Authorization')?.slice(7);
+app.get("/", async (c) => {
+  const token = c.req.header("Authorization")?.slice(7);
   if (!token) return c.json({ authenticated: false }, 403);
-  
+
   const userData = await c.env.AUTH_TOKENS.get(token);
   if (!userData) return c.json({ authenticated: false }, 403);
-  
+
   return c.json({ authenticated: true, data: JSON.parse(userData) });
 });
 
@@ -221,7 +226,7 @@ export default {
       timestamp: new Date().toISOString(),
       url: request.url
     });
-    return Response.json({ message: 'Queued' });
+    return Response.json({ message: "Queued" });
   },
 
   async queue(batch: MessageBatch, env: Env) {
@@ -243,11 +248,11 @@ interface Env {
 export default {
   fetch(request, env) {
     const url = new URL(request.url);
-    
+
     if (url.pathname.startsWith("/api/")) {
       return Response.json({ name: "API" });
     }
-    
+
     return env.ASSETS.fetch(request);
   }
 } satisfies ExportedHandler<Env>;
@@ -271,7 +276,11 @@ Configuration:
 ### Workflows for Durable Execution
 
 ```typescript
-import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
+import {
+  WorkflowEntrypoint,
+  WorkflowStep,
+  WorkflowEvent
+} from "cloudflare:workers";
 
 type Params = {
   email: string;
@@ -280,14 +289,15 @@ type Params = {
 
 export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
   async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
-    const data = await step.do('fetch data', async () => {
-      return { files: ['doc1.pdf', 'doc2.pdf'] };
+    const data = await step.do("fetch data", async () => {
+      return { files: ["doc1.pdf", "doc2.pdf"] };
     });
 
-    await step.sleep('wait', '1 minute');
+    await step.sleep("wait", "1 minute");
 
-    await step.do('process', 
-      { retries: { limit: 5, delay: '5 second', backoff: 'exponential' } },
+    await step.do(
+      "process",
+      { retries: { limit: 5, delay: "5 second", backoff: "exponential" } },
       async () => {
         // Process with retries
       }
@@ -302,13 +312,13 @@ export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
 import { OpenAI } from "openai";
 
 const CalendarEventSchema = {
-  type: 'object',
+  type: "object",
   properties: {
-    name: { type: 'string' },
-    date: { type: 'string' },
-    participants: { type: 'array', items: { type: 'string' } }
+    name: { type: "string" },
+    date: { type: "string" },
+    participants: { type: "array", items: { type: "string" } }
   },
-  required: ['name', 'date', 'participants']
+  required: ["name", "date", "participants"]
 };
 
 export default {
@@ -316,18 +326,18 @@ export default {
     const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
     const response = await client.chat.completions.create({
-      model: 'gpt-4o-2024-08-06',
+      model: "gpt-4o-2024-08-06",
       messages: [
-        { role: 'system', content: 'Extract event information.' },
-        { role: 'user', content: 'Meeting with Alice on Friday.' }
+        { role: "system", content: "Extract event information." },
+        { role: "user", content: "Meeting with Alice on Friday." }
       ],
       response_format: {
-        type: 'json_schema',
+        type: "json_schema",
         schema: CalendarEventSchema
       }
     });
 
     return Response.json({ event: response.choices[0].message.parsed });
   }
-}
+};
 ```

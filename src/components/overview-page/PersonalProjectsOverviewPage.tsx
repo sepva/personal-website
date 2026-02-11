@@ -10,7 +10,10 @@ interface PersonalProjectsOverviewPageProps {
  * Wrapper component for personal projects overview.
  * Uses GenericOverviewPage to eliminate code duplication.
  */
-export function PersonalProjectsOverviewPage({ data, initialEnlargedItemId }: PersonalProjectsOverviewPageProps) {
+export function PersonalProjectsOverviewPage({
+  data,
+  initialEnlargedItemId
+}: PersonalProjectsOverviewPageProps) {
   return (
     <GenericOverviewPage
       title="Personal Projects Overview"

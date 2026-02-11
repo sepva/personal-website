@@ -7,10 +7,10 @@
  * @returns The shareable link identifier or null if not present
  */
 export function parseShareableLinkFromURL(): string | null {
-  if (typeof window === 'undefined') return null;
-  
+  if (typeof window === "undefined") return null;
+
   const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get('item');
+  return urlParams.get("item");
 }
 
 /**
@@ -19,10 +19,10 @@ export function parseShareableLinkFromURL(): string | null {
  * @returns Full URL with query parameter
  */
 export function buildShareableURL(shareableLink: string): string {
-  if (typeof window === 'undefined') return '';
-  
+  if (typeof window === "undefined") return "";
+
   const url = new URL(window.location.origin);
-  url.searchParams.set('item', shareableLink);
+  url.searchParams.set("item", shareableLink);
   return url.toString();
 }
 
@@ -32,25 +32,25 @@ export function buildShareableURL(shareableLink: string): string {
  * @returns Promise that resolves when copy is successful
  */
 export async function copyToClipboard(text: string): Promise<void> {
-  if (typeof window === 'undefined') {
-    throw new Error('Clipboard API not available');
+  if (typeof window === "undefined") {
+    throw new Error("Clipboard API not available");
   }
 
   if (!navigator.clipboard) {
     // Fallback for older browsers
-    const textArea = document.createElement('textarea');
+    const textArea = document.createElement("textarea");
     textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
     document.body.appendChild(textArea);
     textArea.select();
-    
+
     try {
-      document.execCommand('copy');
+      document.execCommand("copy");
       document.body.removeChild(textArea);
     } catch (err) {
       document.body.removeChild(textArea);
-      throw new Error('Failed to copy to clipboard');
+      throw new Error("Failed to copy to clipboard");
     }
   } else {
     await navigator.clipboard.writeText(text);
@@ -66,9 +66,9 @@ export async function copyToClipboard(text: string): Promise<void> {
 export async function shareContent(
   url: string,
   title: string
-): Promise<'native' | 'clipboard'> {
-  if (typeof window === 'undefined') {
-    throw new Error('Share API not available');
+): Promise<"native" | "clipboard"> {
+  if (typeof window === "undefined") {
+    throw new Error("Share API not available");
   }
 
   // Try native share API first (mainly for mobile)
@@ -76,12 +76,12 @@ export async function shareContent(
     try {
       await navigator.share({
         title,
-        url,
+        url
       });
-      return 'native';
+      return "native";
     } catch (err) {
       // User cancelled or share failed, fall back to clipboard
-      if (err instanceof Error && err.name === 'AbortError') {
+      if (err instanceof Error && err.name === "AbortError") {
         // User cancelled, don't fall back
         throw err;
       }
@@ -90,5 +90,5 @@ export async function shareContent(
 
   // Fallback to clipboard
   await copyToClipboard(url);
-  return 'clipboard';
+  return "clipboard";
 }

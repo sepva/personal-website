@@ -16,7 +16,11 @@ interface GenericOverviewPageProps {
  * with filtering, detail view, and mobile/desktop responsive layouts.
  * Eliminates code duplication across Academic, Personal, and Professional overview pages.
  */
-export function GenericOverviewPage({ title, data, initialEnlargedItemId }: GenericOverviewPageProps) {
+export function GenericOverviewPage({
+  title,
+  data,
+  initialEnlargedItemId
+}: GenericOverviewPageProps) {
   const [activeFilter, setActiveFilter] = useState("all");
   const [enlargedItem, setEnlargedItem] = useState<ContentItem | null>(null);
   const isMobile = useIsMobile();
@@ -24,7 +28,7 @@ export function GenericOverviewPage({ title, data, initialEnlargedItemId }: Gene
   // Auto-open content item if initialEnlargedItemId is provided
   useEffect(() => {
     if (initialEnlargedItemId && data.length > 0) {
-      const item = data.find(item => item.id === initialEnlargedItemId);
+      const item = data.find((item) => item.id === initialEnlargedItemId);
       if (item) {
         setEnlargedItem(item);
       }
@@ -41,10 +45,10 @@ export function GenericOverviewPage({ title, data, initialEnlargedItemId }: Gene
   if (enlargedItem && isMobile) {
     return (
       <Modal isOpen={true} onClose={handleClose} fullScreen={true}>
-        <DetailCard 
-          {...enlargedItem} 
+        <DetailCard
+          {...enlargedItem}
           fullContent={enlargedItem.fullContent || enlargedItem.description}
-          onBack={handleClose} 
+          onBack={handleClose}
         />
       </Modal>
     );
@@ -53,10 +57,10 @@ export function GenericOverviewPage({ title, data, initialEnlargedItemId }: Gene
   // Desktop: Render DetailCard inline (current behavior)
   if (enlargedItem) {
     return (
-      <DetailCard 
-        {...enlargedItem} 
+      <DetailCard
+        {...enlargedItem}
         fullContent={enlargedItem.fullContent || enlargedItem.description}
-        onBack={handleClose} 
+        onBack={handleClose}
       />
     );
   }

@@ -44,14 +44,13 @@ export class Chat extends AIChatAgent<Env> {
     );
 
     // Initialize contact service
-    this.contactService = new ContactService(
-      this.env.DB,
-      this.env
-    );
+    this.contactService = new ContactService(this.env.DB, this.env);
 
     // Detect reconnection - log but preserve history state
     if (this.messages.length > 0) {
-      console.log(`[Connection] Reconnection detected - ${this.messages.length} messages in history`);
+      console.log(
+        `[Connection] Reconnection detected - ${this.messages.length} messages in history`
+      );
     }
     // Store connection ID in the WebSocket attachment so it persists through hibernation
     if (connection.id) {
@@ -63,7 +62,8 @@ export class Chat extends AIChatAgent<Env> {
 
     // Create contact_messages table if it doesn't exist
     try {
-      await this.env.DB.prepare(`
+      await this.env.DB.prepare(
+        `
         CREATE TABLE IF NOT EXISTS contact_messages (
           id TEXT,
           email TEXT,
@@ -71,14 +71,17 @@ export class Chat extends AIChatAgent<Env> {
           message TEXT,
           timestamp TEXT
         )
-      `).run();
+      `
+      ).run();
       console.log("Contact messages table initialized");
 
       // Create index on timestamp for efficient rate limit queries
-      await this.env.DB.prepare(`
+      await this.env.DB.prepare(
+        `
         CREATE INDEX IF NOT EXISTS idx_contact_messages_timestamp 
         ON contact_messages(timestamp)
-      `).run();
+      `
+      ).run();
       console.log("Contact messages timestamp index initialized");
     } catch (error) {
       console.error("Failed to create contact_messages table:", error);
@@ -131,10 +134,7 @@ export class Chat extends AIChatAgent<Env> {
   ): Promise<{ success: boolean; error?: string }> {
     // Ensure service is initialized (for RPC calls outside WebSocket context)
     if (!this.contactService) {
-      this.contactService = new ContactService(
-        this.env.DB,
-        this.env
-      );
+      this.contactService = new ContactService(this.env.DB, this.env);
     }
     return this.contactService.saveContactMessage(email, name, message);
   }
@@ -151,14 +151,20 @@ export class Chat extends AIChatAgent<Env> {
     );
 
     const initialMessageCount = this.messages.length;
-    console.log(`[Sliding Window] Initial message count: ${initialMessageCount}, max allowed: ${maxMessages}`);
+    console.log(
+      `[Sliding Window] Initial message count: ${initialMessageCount}, max allowed: ${maxMessages}`
+    );
 
     if (this.messages.length <= maxMessages) {
-      console.log(`[Sliding Window] No trimming needed (${this.messages.length}/${maxMessages})`);
+      console.log(
+        `[Sliding Window] No trimming needed (${this.messages.length}/${maxMessages})`
+      );
       return; // No need to trim
     }
 
-    console.log(`[Sliding Window] Trimming required - analyzing conversation turns...`);
+    console.log(
+      `[Sliding Window] Trimming required - analyzing conversation turns...`
+    );
 
     // Convert to model messages to understand structure
     const modelMessages = await convertToModelMessages(this.messages);
@@ -171,7 +177,9 @@ export class Chat extends AIChatAgent<Env> {
       }
     });
 
-    console.log(`[Sliding Window] Found ${turnStartIndices.length} conversation turns`);
+    console.log(
+      `[Sliding Window] Found ${turnStartIndices.length} conversation turns`
+    );
 
     // Calculate how many complete turns to drop
     let messagesToDrop = 0;
@@ -184,7 +192,9 @@ export class Chat extends AIChatAgent<Env> {
       if (modelMessages.length - messagesToDrop - turnLength >= maxMessages) {
         messagesToDrop += turnLength;
         turnsToRemove++;
-        console.log(`[Sliding Window] Will drop turn ${i + 1} (${turnLength} messages, starting at index ${turnStart})`);
+        console.log(
+          `[Sliding Window] Will drop turn ${i + 1} (${turnLength} messages, starting at index ${turnStart})`
+        );
       } else {
         break;
       }
@@ -194,10 +204,16 @@ export class Chat extends AIChatAgent<Env> {
       // Remove oldest messages from UIMessage array
       // UIMessages and ModelMessages have 1:1 correspondence after conversion
       this.messages = this.messages.slice(messagesToDrop);
-      console.log(`[Sliding Window] ✓ Dropped ${turnsToRemove} oldest turn(s) (${messagesToDrop} messages)`);
-      console.log(`[Sliding Window] ✓ Final message count: ${this.messages.length}/${maxMessages}`);
+      console.log(
+        `[Sliding Window] ✓ Dropped ${turnsToRemove} oldest turn(s) (${messagesToDrop} messages)`
+      );
+      console.log(
+        `[Sliding Window] ✓ Final message count: ${this.messages.length}/${maxMessages}`
+      );
     } else {
-      console.log(`[Sliding Window] No messages dropped - window already optimized`);
+      console.log(
+        `[Sliding Window] No messages dropped - window already optimized`
+      );
     }
   }
 
@@ -215,36 +231,42 @@ export class Chat extends AIChatAgent<Env> {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        console.log(`[Retry] Executing ${operationName} (attempt ${attempt}/${maxAttempts})`);
+        console.log(
+          `[Retry] Executing ${operationName} (attempt ${attempt}/${maxAttempts})`
+        );
         return await fn();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
+
         // Log the full error for debugging
         console.error(`[Retry] ===== ERROR CAUGHT =====`);
-        console.error(`[Retry] Error type: ${error?.constructor?.name || typeof error}`);
+        console.error(
+          `[Retry] Error type: ${error?.constructor?.name || typeof error}`
+        );
         console.error(`[Retry] Error message: ${lastError.message}`);
         console.error(`[Retry] Full error:`, JSON.stringify(error, null, 2));
         console.error(`[Retry] Stack trace:`, lastError.stack);
-        
+
         // Check if error is recoverable (context length or rate limit)
         // Handle both Error objects and structured error objects from OpenAI
-        let errorMessage = '';
+        let errorMessage = "";
         if (lastError.message) {
           errorMessage = lastError.message.toLowerCase();
         }
         // Check if error has a structured format (e.g., {error: {code: 'rate_limit_exceeded'}})
         const errorObj = error as any;
-        const errorCode = errorObj?.error?.code || errorObj?.code || '';
-        
-        const isContextError = errorMessage.includes("context_length_exceeded") || 
-                               errorMessage.includes("context length") ||
-                               errorMessage.includes("maximum context") ||
-                               errorCode === "context_length_exceeded";
-        const isRateLimitError = errorMessage.includes("rate_limit_exceeded") ||
-                                 errorMessage.includes("rate limit") ||
-                                 errorMessage.includes("429") ||
-                                 errorCode === "rate_limit_exceeded";
+        const errorCode = errorObj?.error?.code || errorObj?.code || "";
+
+        const isContextError =
+          errorMessage.includes("context_length_exceeded") ||
+          errorMessage.includes("context length") ||
+          errorMessage.includes("maximum context") ||
+          errorCode === "context_length_exceeded";
+        const isRateLimitError =
+          errorMessage.includes("rate_limit_exceeded") ||
+          errorMessage.includes("rate limit") ||
+          errorMessage.includes("429") ||
+          errorCode === "rate_limit_exceeded";
 
         if (!isContextError && !isRateLimitError) {
           // Not a recoverable error, throw immediately
@@ -261,10 +283,12 @@ export class Chat extends AIChatAgent<Env> {
         if (attempt < maxAttempts) {
           // For context errors, try to drop oldest conversation turn
           if (isContextError && this.messages.length > 0) {
-            console.log(`[Retry] Trimming messages due to context length error...`);
+            console.log(
+              `[Retry] Trimming messages due to context length error...`
+            );
             // Convert to model messages to find turn boundaries
             const modelMessages = await convertToModelMessages(this.messages);
-            
+
             // Find the second user message (first turn to keep)
             let secondUserIdx = -1;
             let userCount = 0;
@@ -282,11 +306,15 @@ export class Chat extends AIChatAgent<Env> {
               // Drop everything before the second user message
               const beforeCount = this.messages.length;
               this.messages = this.messages.slice(secondUserIdx);
-              console.log(`[Retry] Dropped oldest conversation turn (${beforeCount - this.messages.length} messages), ${this.messages.length} remaining`);
+              console.log(
+                `[Retry] Dropped oldest conversation turn (${beforeCount - this.messages.length} messages), ${this.messages.length} remaining`
+              );
             } else if (this.messages.length > 0) {
               // Fallback: just drop the oldest message
               this.messages = this.messages.slice(1);
-              console.log(`[Retry] Dropped oldest message as fallback, ${this.messages.length} remaining`);
+              console.log(
+                `[Retry] Dropped oldest message as fallback, ${this.messages.length} remaining`
+              );
             }
           }
 
@@ -307,7 +335,7 @@ export class Chat extends AIChatAgent<Env> {
 
   /**
    * Handles incoming chat messages and manages the response stream
-   * 
+   *
    * Special handling for shareable links:
    * - Client sends init-history message with conversation context
    * - We extract the history and inject it before real messages
@@ -326,28 +354,28 @@ export class Chat extends AIChatAgent<Env> {
       );
     }
     if (!this.contactService) {
-      this.contactService = new ContactService(
-        this.env.DB,
-        this.env
-      );
+      this.contactService = new ContactService(this.env.DB, this.env);
     }
 
     // Check for initialization message with history payload and inject history
     if (this.messages.length > 0) {
-      const initMessage = this.messages.find((msg: any) => 
-        msg.parts?.some((part: any) => part.type === 'init-history')
+      const initMessage = this.messages.find((msg: any) =>
+        msg.parts?.some((part: any) => part.type === "init-history")
       );
-      
+
       if (initMessage) {
-        const initPart = initMessage.parts.find((part: any) => part.type === 'init-history');
+        const initPart = initMessage.parts.find(
+          (part: any) => part.type === "init-history"
+        );
         const history = (initPart as any)?.history;
-        
+
         if (history && Array.isArray(history) && history.length > 0) {
           // Remove all init messages from the array
-          const messagesWithoutInit = this.messages.filter((msg: any) => 
-            !msg.parts?.some((part: any) => part.type === 'init-history')
+          const messagesWithoutInit = this.messages.filter(
+            (msg: any) =>
+              !msg.parts?.some((part: any) => part.type === "init-history")
           );
-          
+
           // If only init message present, return early (no LLM call needed)
           if (messagesWithoutInit.length === 0) {
             const stream = createUIMessageStream({
@@ -355,14 +383,14 @@ export class Chat extends AIChatAgent<Env> {
             });
             return createUIMessageStreamResponse({ stream });
           }
-          
+
           // Inject history before real messages
           this.messages.length = 0;
           this.messages.push(...history, ...messagesWithoutInit);
         }
       }
     }
-    
+
     // Apply sliding window to manage message history
     await this.applySlidingWindow();
     // Get MCP tools safely (handles hot reload issues in development)
@@ -388,30 +416,35 @@ export class Chat extends AIChatAgent<Env> {
       this.contentRepository.queryVectorDatabase.bind(this.contentRepository),
       this.env
     );
-    
+
     // Wrap AI SDK with LangSmith for full tracing
     const { streamText } = wrapAISDK(ai);
-    
+
     // Create OpenRouter provider with model fallback chain
-    const { provider: openrouter, primaryModel } = createOpenRouterProvider(this.env, this.env.OPENROUTER_MODELS);
-    
+    const { provider: openrouter, primaryModel } = createOpenRouterProvider(
+      this.env,
+      this.env.OPENROUTER_MODELS
+    );
+
     // Wrap model with input guardrail middleware
     const model = wrapLanguageModel({
       model: openrouter.chat(primaryModel),
       middleware: inputGuardrailMiddleware
     });
 
-    // Wrap onFinish callback to track model usage 
-    const wrappedOnFinish: StreamTextOnFinishCallback<ToolSet> = async (event) => {
+    // Wrap onFinish callback to track model usage
+    const wrappedOnFinish: StreamTextOnFinishCallback<ToolSet> = async (
+      event
+    ) => {
       // Log which model was actually used by OpenRouter
-      const modelUsed = event.response?.modelId || 'unknown';
-      console.log(`[OpenRouter] Model used: ${modelUsed}`);     
-      
+      const modelUsed = event.response?.modelId || "unknown";
+      console.log(`[OpenRouter] Model used: ${modelUsed}`);
+
       // Log usage if available
       if (event.usage) {
         console.log(`[OpenRouter] Usage:`, event.usage);
       }
-      
+
       // Call original onFinish callback if provided
       if (onFinish) {
         await onFinish(event);
@@ -421,7 +454,7 @@ export class Chat extends AIChatAgent<Env> {
     // Wrap streamText call with retry logic for context/rate limit errors
     const result = await this.retryWithMessageTrimming(async () => {
       const modelMessages = await convertToModelMessages(this.messages);
-      
+
       const streamTextConfig: any = {
         system: systemPrompt,
         messages: modelMessages,
@@ -443,7 +476,7 @@ export class Chat extends AIChatAgent<Env> {
       };
       return streamText(streamTextConfig);
     }, "streamText");
-    
+
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         try {
@@ -454,7 +487,7 @@ export class Chat extends AIChatAgent<Env> {
         }
       }
     });
-    
+
     const response = createUIMessageStreamResponse({ stream });
     return response;
   }
@@ -466,59 +499,62 @@ export class Chat extends AIChatAgent<Env> {
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext) {
     const url = new URL(request.url);
-    
+
     // Handle shareable link content fetching
-    if (url.pathname === '/api/content' && request.method === 'GET') {
-      const shareableLink = url.searchParams.get('link');
-      
+    if (url.pathname === "/api/content" && request.method === "GET") {
+      const shareableLink = url.searchParams.get("link");
+
       if (!shareableLink) {
         return new Response(
           JSON.stringify({ error: "Missing 'link' query parameter" }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
+          { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
 
       try {
         // Create a temporary Durable Object instance to access the database
         // We use a deterministic ID so content can be fetched without a session
-        const id = env.Chat.idFromName('__content_fetcher__');
+        const id = env.Chat.idFromName("__content_fetcher__");
         const chatStub = env.Chat.get(id) as any;
-        
+
         // Call the method on the Durable Object
-        const result = await chatStub.fetchContentByShareableLink(shareableLink);
+        const result =
+          await chatStub.fetchContentByShareableLink(shareableLink);
 
         if (!result.contentItem) {
-          return new Response(
-            JSON.stringify({ error: "Content not found" }),
-            { status: 404, headers: { 'Content-Type': 'application/json' } }
-          );
+          return new Response(JSON.stringify({ error: "Content not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" }
+          });
         }
 
-        return new Response(
-          JSON.stringify(result),
-          { 
-            status: 200,
-            headers: { 
-              'Content-Type': 'application/json',
-              'Cache-Control': 'public, max-age=300' // Cache for 5 minutes
-            }
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "public, max-age=300" // Cache for 5 minutes
           }
-        );
+        });
       } catch (error) {
         console.error("Error fetching content by shareable link:", error);
         return new Response(
           JSON.stringify({ error: "Internal server error" }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
+          { status: 500, headers: { "Content-Type": "application/json" } }
         );
       }
     }
-    
+
     // Handle contact form submissions
-    if (url.pathname === '/api/contact' && request.method === 'POST') {
+    if (url.pathname === "/api/contact" && request.method === "POST") {
       try {
         // Parse request body
-        const body = await request.json() as { email: string; name: string; message: string; sessionId: string };
-        
+        const body = (await request.json()) as {
+          email: string;
+          name: string;
+          message: string;
+          sessionId: string;
+        };
+
         // Validate input
         const contactSchema = z.object({
           email: z.string().email(),
@@ -530,8 +566,11 @@ export default {
         const validation = contactSchema.safeParse(body);
         if (!validation.success) {
           return new Response(
-            JSON.stringify({ error: "Invalid input", details: validation.error.errors }),
-            { status: 400, headers: { 'Content-Type': 'application/json' } }
+            JSON.stringify({
+              error: "Invalid input",
+              details: validation.error.errors
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
           );
         }
 
@@ -546,24 +585,21 @@ export default {
         const result = await chatStub.saveContactMessage(email, name, message);
 
         if (!result.success) {
-          return new Response(
-            JSON.stringify({ error: result.error }),
-            { 
-              status: result.error?.includes('Rate limit') ? 429 : 500,
-              headers: { 'Content-Type': 'application/json' }
-            }
-          );
+          return new Response(JSON.stringify({ error: result.error }), {
+            status: result.error?.includes("Rate limit") ? 429 : 500,
+            headers: { "Content-Type": "application/json" }
+          });
         }
 
-        return new Response(
-          JSON.stringify({ success: true }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        });
       } catch (error) {
         console.error("Error handling contact submission:", error);
         return new Response(
           JSON.stringify({ error: "Internal server error" }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
+          { status: 500, headers: { "Content-Type": "application/json" } }
         );
       }
     }
