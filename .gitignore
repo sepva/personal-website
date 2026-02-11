@@ -148,3 +148,4 @@ dist
 !.env.example
 
 figma/
+refactoring_todo.md

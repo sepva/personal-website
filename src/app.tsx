@@ -17,7 +17,7 @@ import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { AcademicOverviewPage } from "@/components/overview-page/AcademicOverviewPage";
 import { PersonalProjectsOverviewPage } from "./components/overview-page/PersonalProjectsOverviewPage";
 import { ProfessionalProjectsOverviewPage } from "./components/overview-page/ProfessionalProjectsOverviewPage";
-import { COMPONENT_NAMES } from "@/constants";
+import { COMPONENT_NAMES } from "@/config/constants";
 import { ContactForm } from "./components/contact-form/ContactForm";
 import { Loader } from "./components/loader/Loader";
 import { RotateCcw } from "lucide-react";

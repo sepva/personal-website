@@ -21,6 +21,14 @@ import { createInputGuardrailMiddleware } from "./middleware/inputGuardrail";
 import { createOpenRouterProvider } from "./lib/openrouter";
 import { ContentRepository } from "./repositories/ContentRepository";
 import { ContactService } from "./services/ContactService";
+import {
+  DEFAULT_MAX_HISTORY_MESSAGES,
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_BASE_DELAY_MS,
+  MAX_RETRY_DELAY_MS,
+  DEFAULT_BACKOFF_MULTIPLIER,
+  API_ENDPOINTS
+} from "@/config/constants";
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
@@ -146,7 +154,7 @@ export class Chat extends AIChatAgent<Env> {
    */
   private async applySlidingWindow(): Promise<void> {
     const maxMessages = Number.parseInt(
-      this.env.MAX_HISTORY_MESSAGES || "20",
+      this.env.MAX_HISTORY_MESSAGES || String(DEFAULT_MAX_HISTORY_MESSAGES),
       10
     );
 
@@ -224,10 +232,10 @@ export class Chat extends AIChatAgent<Env> {
   private async retryWithMessageTrimming<T>(
     fn: () => Promise<T>,
     operationName: string,
-    maxAttempts: number = 3
+    maxAttempts: number = DEFAULT_MAX_RETRIES
   ): Promise<T> {
     let lastError: Error | null = null;
-    let delay = 100; // Start with 100ms
+    let delay = DEFAULT_BASE_DELAY_MS;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -321,7 +329,10 @@ export class Chat extends AIChatAgent<Env> {
           // Wait with exponential backoff
           console.log(`[Retry] Waiting ${delay}ms before retry...`);
           await new Promise((resolve) => setTimeout(resolve, delay));
-          delay = Math.min(delay * 2, 2000); // Max 2 seconds
+          delay = Math.min(
+            delay * DEFAULT_BACKOFF_MULTIPLIER,
+            MAX_RETRY_DELAY_MS
+          );
         }
       }
     }
@@ -545,7 +556,7 @@ export default {
     }
 
     // Handle contact form submissions
-    if (url.pathname === "/api/contact" && request.method === "POST") {
+    if (url.pathname === API_ENDPOINTS.CONTACT && request.method === "POST") {
       try {
         // Parse request body
         const body = (await request.json()) as {

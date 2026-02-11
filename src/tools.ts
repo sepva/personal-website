@@ -4,7 +4,7 @@
  */
 import { tool, type ToolSet } from "ai";
 import { z } from "zod/v3";
-import { COMPONENT_NAMES } from "@/constants";
+import { COMPONENT_NAMES } from "@/config/constants";
 
 /**
  * Type definition for the fetch content function

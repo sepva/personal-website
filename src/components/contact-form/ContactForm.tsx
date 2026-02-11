@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Send, CheckCircle, AlertCircle } from "lucide-react";
+import { API_ENDPOINTS } from "@/config/constants";
 
 interface ContactFormProps {
   data?: Record<string, unknown>;
@@ -29,7 +30,7 @@ export function ContactForm(_props: ContactFormProps) {
     try {
       const sessionId = sessionStorage.getItem("chat-session-id");
 
-      const response = await fetch("/api/contact", {
+      const response = await fetch(API_ENDPOINTS.CONTACT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

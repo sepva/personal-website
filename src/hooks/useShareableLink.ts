@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { UIMessage } from "@ai-sdk/react";
 import { parseShareableLinkFromURL } from "@/lib/shareable-links";
+import { API_ENDPOINTS } from "@/config/constants";
 
 interface CustomMessage {
   id: string;
@@ -64,7 +65,7 @@ export function useShareableLink(): ShareableLinkData {
       try {
         // Fetch content data from API
         const response = await fetch(
-          `/api/content?link=${encodeURIComponent(shareableLink)}`
+          `${API_ENDPOINTS.CONTENT}?link=${encodeURIComponent(shareableLink)}`
         );
 
         if (!response.ok) {

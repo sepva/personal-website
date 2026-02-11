@@ -1,7 +1,17 @@
 import { z } from "zod";
 import type { ContentItem } from "../shared";
-import { DATA_TYPE_TO_COMPONENT } from "@/constants";
 import { retryWithExponentialBackoff } from "@/utils/retry";
+import {
+  CACHE_TTL_MS,
+  MAX_CACHE_ENTRIES,
+  CONNECTION_HEALTH_CHECK_INTERVAL_MS,
+  CONNECTION_IDLE_TIMEOUT_MS,
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_BASE_DELAY_MS,
+  MAX_RETRY_DELAY_MS,
+  DEFAULT_BACKOFF_MULTIPLIER,
+  DATA_TYPE_TO_COMPONENT
+} from "@/config/constants";
 
 /**
  * Zod schema for validating and parsing ContentItem from database rows
@@ -60,18 +70,10 @@ export class ContentRepository {
   // In-memory cache for database results with TTL
   private contentCache: Map<string, CacheEntry> = new Map();
 
-  // Cache TTL in milliseconds (5 minutes)
-  private readonly CACHE_TTL_MS = 5 * 60 * 1000;
-
-  // Max number of cache entries to prevent memory leaks
-  private readonly MAX_CACHE_ENTRIES = 100;
-
   // Connection health tracking
   private lastConnectionHealthCheck: number = 0;
   private lastDBActivity: number = Date.now();
   private isConnectionValid: boolean = true;
-  private readonly CONNECTION_HEALTH_CHECK_INTERVAL_MS = 30 * 1000; // 30 seconds
-  private readonly CONNECTION_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     private db: D1Database,
@@ -87,7 +89,7 @@ export class ContentRepository {
     let clearedCount = 0;
 
     for (const [key, value] of this.contentCache.entries()) {
-      if (now - value.timestamp > this.CACHE_TTL_MS) {
+      if (now - value.timestamp > CACHE_TTL_MS) {
         this.contentCache.delete(key);
         clearedCount++;
       }
@@ -132,8 +134,8 @@ export class ContentRepository {
     const timeSinceLastActivity = now - this.lastDBActivity;
 
     if (
-      timeSinceLastCheck > this.CONNECTION_HEALTH_CHECK_INTERVAL_MS ||
-      timeSinceLastActivity > this.CONNECTION_IDLE_TIMEOUT_MS ||
+      timeSinceLastCheck > CONNECTION_HEALTH_CHECK_INTERVAL_MS ||
+      timeSinceLastActivity > CONNECTION_IDLE_TIMEOUT_MS ||
       !this.isConnectionValid
     ) {
       console.log(
@@ -158,14 +160,14 @@ export class ContentRepository {
         return fn();
       },
       {
-        maxAttempts: 3,
-        baseDelayMs: 100,
-        maxDelayMs: 2000,
-        backoffMultiplier: 2,
+        maxAttempts: DEFAULT_MAX_RETRIES,
+        baseDelayMs: DEFAULT_BASE_DELAY_MS,
+        maxDelayMs: MAX_RETRY_DELAY_MS,
+        backoffMultiplier: DEFAULT_BACKOFF_MULTIPLIER,
         onRetry: (attempt, error, delay) => {
           console.warn(
             `${operationName} failed on attempt ${attempt}: ${error.message}`,
-            { delay, remainingAttempts: 3 - attempt }
+            { delay, remainingAttempts: DEFAULT_MAX_RETRIES - attempt }
           );
         }
       }
@@ -277,7 +279,7 @@ export class ContentRepository {
     if (this.contentCache.has(cacheKey)) {
       const cached = this.contentCache.get(cacheKey)!;
       const age = Date.now() - cached.timestamp;
-      if (age < this.CACHE_TTL_MS) {
+      if (age < CACHE_TTL_MS) {
         console.log(
           `[ContentRepository] Cache hit for ${cacheKey} (age: ${age}ms)`
         );
@@ -320,7 +322,7 @@ export class ContentRepository {
       const parsedResults = this.parseDBResults(result);
 
       // Enforce max cache size by evicting oldest entry
-      if (this.contentCache.size >= this.MAX_CACHE_ENTRIES) {
+      if (this.contentCache.size >= MAX_CACHE_ENTRIES) {
         let oldestKey: string | null = null;
         let oldestTimestamp = Infinity;
 

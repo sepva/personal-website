@@ -1,4 +1,13 @@
 import { retryWithExponentialBackoff } from "@/utils/retry";
+import {
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_BASE_DELAY_MS,
+  DEFAULT_GLOBAL_RATE_LIMIT,
+  DEFAULT_SESSION_RATE_LIMIT,
+  DEFAULT_EMAIL_RATE_LIMIT,
+  ONE_HOUR_MS,
+  ONE_MINUTE_MS
+} from "@/config/constants";
 
 /**
  * ContactService handles all contact form submissions with multi-level rate limiting.
@@ -28,11 +37,11 @@ export class ContactService {
     operationName: string
   ): Promise<T> {
     return retryWithExponentialBackoff(operation, {
-      maxAttempts: 3,
-      baseDelayMs: 100,
+      maxAttempts: DEFAULT_MAX_RETRIES,
+      baseDelayMs: DEFAULT_BASE_DELAY_MS,
       onRetry: (attempt, error, delayMs) => {
         console.warn(
-          `${operationName} failed (attempt ${attempt}/3), retrying in ${delayMs}ms:`,
+          `${operationName} failed (attempt ${attempt}/${DEFAULT_MAX_RETRIES}), retrying in ${delayMs}ms:`,
           error.message
         );
       }
@@ -43,7 +52,7 @@ export class ContactService {
    * Clean up expired submissions from session rate limit tracking
    */
   private cleanupExpiredSubmissions(): void {
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const oneHourAgo = Date.now() - ONE_HOUR_MS;
     this.contactSubmissions = this.contactSubmissions.filter(
       (timestamp) => timestamp > oneHourAgo
     );
@@ -55,7 +64,7 @@ export class ContactService {
   private async checkGlobalRateLimit(
     globalLimit: number
   ): Promise<{ exceeded: boolean; count: number }> {
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const oneHourAgo = Date.now() - ONE_HOUR_MS;
     const oneHourAgoISO = new Date(oneHourAgo).toISOString();
 
     const result = await this.executeDBQuery(async () => {
@@ -88,7 +97,7 @@ export class ContactService {
 
     const oldestSubmission = Math.min(...this.contactSubmissions);
     const minutesUntilAvailable = Math.ceil(
-      (oldestSubmission + 60 * 60 * 1000 - Date.now()) / (60 * 1000)
+      (oldestSubmission + ONE_HOUR_MS - Date.now()) / ONE_MINUTE_MS
     );
 
     return {
@@ -104,7 +113,7 @@ export class ContactService {
     email: string,
     emailLimit: number
   ): Promise<{ exceeded: boolean; count: number }> {
-    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const oneHourAgo = Date.now() - ONE_HOUR_MS;
     const oneHourAgoISO = new Date(oneHourAgo).toISOString();
 
     const result = await this.executeDBQuery(async () => {
@@ -147,15 +156,15 @@ export class ContactService {
       // Get rate limit values from environment variables with defaults
       const env = this.env as any;
       const globalLimit = Number.parseInt(
-        env?.RATE_LIMIT_GLOBAL_PER_HOUR || "100",
+        env?.RATE_LIMIT_GLOBAL_PER_HOUR || String(DEFAULT_GLOBAL_RATE_LIMIT),
         10
       );
       const sessionLimit = Number.parseInt(
-        env?.RATE_LIMIT_SESSION_PER_HOUR || "3",
+        env?.RATE_LIMIT_SESSION_PER_HOUR || String(DEFAULT_SESSION_RATE_LIMIT),
         10
       );
       const emailLimit = Number.parseInt(
-        env?.RATE_LIMIT_EMAIL_PER_HOUR || "3",
+        env?.RATE_LIMIT_EMAIL_PER_HOUR || String(DEFAULT_EMAIL_RATE_LIMIT),
         10
       );
 
