@@ -456,6 +456,15 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
   ) {
+    // Ensure logger is initialized (in case onConnect wasn't called)
+    if (!this.logger) {
+      const connectionId = this.getConnectionId();
+      this.logger = createLogger('chat', this.env, {
+        connectionId: connectionId,
+        sessionId: this.ctx.id.toString()
+      });
+    }
+    
     const timer = this.logger.startTimer();
     
     // Ensure repositories/services are initialized (in case onConnect wasn't called)
@@ -563,7 +572,8 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     // Wrap model with input guardrail middleware
     const model = wrapLanguageModel({
       model: openrouter.chat(primaryModel),
-      middleware: inputGuardrailMiddleware
+      middleware: []
+      // middleware: inputGuardrailMiddleware
     });
 
     // Wrap onFinish callback to track model usage
@@ -596,6 +606,11 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
         tools: allTools,
         stopWhen: stepCountIs(5), // Stop after 5 steps (enables multi-step tool calling)
         providerOptions: {
+          openrouter: {
+            reasoning: {
+              effort: "low" // Optimize for speed - only works with reasoning models (o1/o3, claude-3.7+, deepseek-r1)
+            }
+          },
           langsmith: createLangSmithProviderOptions({
             metadata: {
               session_id: sessionId

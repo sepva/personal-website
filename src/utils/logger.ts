@@ -3,7 +3,7 @@
  * 
  * Features:
  * - Environment-aware formatting (pretty console for dev, JSON for production)
- * - Configurable log levels via LOG_LEVEL env var
+ * - Configurable log levels via LOGGER_LEVEL env var
  * - Structured logging with correlation IDs for request tracing
  * - Performance timing helpers
  * - Error serialization with stack traces
@@ -44,8 +44,8 @@ export interface LogEntry {
 }
 
 interface Env {
-  LOG_LEVEL?: string;
-  LOG_FORMAT?: 'json' | 'pretty';
+  LOGGER_LEVEL?: string;
+  LOGGER_FORMAT?: 'json' | 'pretty';
 }
 
 export class Logger {
@@ -57,8 +57,8 @@ export class Logger {
   constructor(service: string, env: Partial<Env> = {}, context: LogContext = {}) {
     this.service = service;
     this.context = context;
-    this.minLevel = this.parseLogLevel(env.LOG_LEVEL);
-    this.isPretty = this.shouldUsePrettyFormat(env.LOG_FORMAT);
+    this.minLevel = this.parseLogLevel(env.LOGGER_LEVEL);
+    this.isPretty = this.shouldUsePrettyFormat(env.LOGGER_FORMAT);
   }
 
   private parseLogLevel(level?: string): LogLevel {
@@ -87,7 +87,7 @@ export class Logger {
   withContext(context: LogContext): Logger {
     return new Logger(
       this.service,
-      { LOG_LEVEL: LogLevel[this.minLevel], LOG_FORMAT: this.isPretty ? 'pretty' : 'json' },
+      { LOGGER_LEVEL: LogLevel[this.minLevel], LOGGER_FORMAT: this.isPretty ? 'pretty' : 'json' },
       { ...this.context, ...context }
     );
   }

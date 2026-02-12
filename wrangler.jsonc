@@ -53,8 +53,8 @@
     "RATE_LIMIT_SESSION_PER_HOUR": "3",
     "RATE_LIMIT_EMAIL_PER_HOUR": "3",
     "MAX_HISTORY_MESSAGES": "20",
-    "LOG_LEVEL": "INFO",
-    "LOG_FORMAT": "json"
+    "LOGGER_LEVEL": "INFO",
+    "LOGGER_FORMAT": "json"
   }
   /**
    * Smart Placement

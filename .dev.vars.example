@@ -10,7 +10,7 @@ LANGSMITH_API_KEY=<your-api-key>
 LANGSMITH_PROJECT=<your-project-name>
 
 # Logging Configuration
-# LOG_LEVEL: DEBUG|INFO|WARN|ERROR (default: DEBUG for development)
-# LOG_FORMAT: json|pretty (default: pretty for development)
-LOG_LEVEL=DEBUG
-LOG_FORMAT=pretty
+# LOGGER_LEVEL: DEBUG|INFO|WARN|ERROR (default: DEBUG for development)
+# LOGGER_FORMAT: json|pretty (default: pretty for development)
+LOGGER_LEVEL=DEBUG
+LOGGER_FORMAT=pretty

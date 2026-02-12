@@ -20,8 +20,8 @@ declare namespace Cloudflare {
 		RATE_LIMIT_SESSION_PER_HOUR?: string;
 		RATE_LIMIT_EMAIL_PER_HOUR?: string;
 		MAX_HISTORY_MESSAGES?: string;
-		LOG_LEVEL?: string;
-		LOG_FORMAT?: 'json' | 'pretty';
+		LOGGER_LEVEL?: string;
+		LOGGER_FORMAT?: 'json' | 'pretty';
 		Chat: DurableObjectNamespace<import("./src/server").Chat>;
 		DB: D1Database;
 		VECTOR_INDEX: VectorizeIndex;
