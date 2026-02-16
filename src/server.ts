@@ -711,7 +711,6 @@ export default {
     const url = new URL(request.url);
     const requestId = crypto.randomUUID();
     const logger = createLogger('chat', env, { requestId });
-    const timer = logger.startTimer();
 
     logger.info(
       'http_request',
@@ -757,15 +756,9 @@ export default {
 
     if (url.pathname === "/" && request.method === "GET") {
       const shareableLink = url.searchParams.get("link");
+      
       if (shareableLink) {
         try {
-          logger.info(
-            'fetch_shareable_link',
-            'Rendering shareable link content for SSR',
-            { linkId: shareableLink },
-            'api'
-          );
-
           const result = await fetchShareableContent(
             env,
             logger,
@@ -814,6 +807,7 @@ export default {
             result.contentItem,
             canonicalUrl
           );
+          
           return new Response(html, {
             status: 200,
             headers: {
@@ -837,6 +831,13 @@ export default {
             }
           );
         }
+      } else {
+        // No query param - serve static index.html via ASSETS
+        // @ts-expect-error - ASSETS is automatically provided by Cloudflare Workers
+        if (env.ASSETS) {
+          // @ts-expect-error - ASSETS.fetch is the standard way to serve static files
+          return env.ASSETS.fetch(request);
+        }
       }
     }
 
@@ -845,12 +846,6 @@ export default {
       const shareableLink = url.searchParams.get("link");
 
       if (!shareableLink) {
-        logger.warn(
-          'fetch_shareable_link',
-          'Missing link query parameter',
-          {},
-          'api'
-        );
         return new Response(
           JSON.stringify({ error: "Missing 'link' query parameter" }),
           { status: 400, headers: { "Content-Type": "application/json" } }
@@ -858,13 +853,6 @@ export default {
       }
 
       try {
-        logger.info(
-          'fetch_shareable_link',
-          'Fetching content by shareable link',
-          { linkId: shareableLink },
-          'api'
-        );
-
         const result = await fetchShareableContent(
           env,
           logger,
@@ -872,25 +860,12 @@ export default {
         );
 
         if (!result.contentItem) {
-          logger.info(
-            'fetch_shareable_link',
-            'Content not found for shareable link',
-            { linkId: shareableLink, status: 404 },
-            'api'
-          );
           return new Response(JSON.stringify({ error: "Content not found" }), {
             status: 404,
             headers: { "Content-Type": "application/json" }
           });
         }
 
-        timer.end(
-          'info',
-          'fetch_shareable_link',
-          'Successfully fetched shareable link content',
-          { linkId: shareableLink, status: 200 },
-          'api'
-        );
         return new Response(JSON.stringify(result), {
           status: 200,
           headers: {
@@ -899,13 +874,6 @@ export default {
           }
         });
       } catch (error) {
-        timer.end(
-          'error',
-          'fetch_shareable_link',
-          'Error fetching shareable link content',
-          { linkId: shareableLink },
-          'api'
-        );
         logger.error(
           'fetch_shareable_link',
           'Failed to fetch content by shareable link',
@@ -923,12 +891,6 @@ export default {
     // Handle contact form submissions
     if (url.pathname === API_ENDPOINTS.CONTACT && request.method === "POST") {
       try {
-        logger.info(
-          'contact_submission',
-          'Processing contact form submission',
-          {},
-          'api'
-        );
         // Parse request body
         const body = (await request.json()) as {
           email: string;
@@ -947,12 +909,6 @@ export default {
 
         const validation = contactSchema.safeParse(body);
         if (!validation.success) {
-          logger.warn(
-            'contact_submission',
-            'Invalid contact form input',
-            { errors: validation.error.errors },
-            'api'
-          );
           return new Response(
             JSON.stringify({
               error: "Invalid input",
@@ -963,13 +919,6 @@ export default {
         }
 
         const { email, name, message, sessionId } = validation.data;
-
-        logger.info(
-          'contact_submission',
-          'Contact form validated successfully',
-          { email, sessionId },
-          'api'
-        );
 
         // Get the Chat Durable Object stub for this session
         const id = env.Chat.idFromName(sessionId);
@@ -986,37 +935,17 @@ export default {
 
         if (!result.success) {
           const status = result.error?.includes("Rate limit") ? 429 : 500;
-          logger.warn(
-            'contact_submission',
-            'Contact form submission failed',
-            { email, sessionId, error: result.error, status },
-            'api'
-          );
           return new Response(JSON.stringify({ error: result.error }), {
             status,
             headers: { "Content-Type": "application/json" }
           });
         }
 
-        timer.end(
-          'info',
-          'contact_submission',
-          'Contact form submitted successfully',
-          { email, sessionId, status: 200 },
-          'api'
-        );
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { "Content-Type": "application/json" }
         });
       } catch (error) {
-        timer.end(
-          'error',
-          'contact_submission',
-          'Error handling contact form submission',
-          {},
-          'api'
-        );
         logger.error(
           'contact_submission',
           'Failed to handle contact form submission',
@@ -1037,7 +966,7 @@ export default {
       return agentResponse;
     }
 
-    // Serve static assets from the public directory
+    // Serve other static assets
     // @ts-expect-error - ASSETS is automatically provided by Cloudflare Workers
     if (env.ASSETS) {
       // @ts-expect-error - ASSETS.fetch is the standard way to serve static files
