@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "start": "vite dev",
+    "build": "vite build",
     "set_secrets": "wrangler secret bulk .dev.vars",
     "deploy": "npm run test:ci && vite build && wrangler deploy",
     "test": "vitest",

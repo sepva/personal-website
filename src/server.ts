@@ -17,11 +17,18 @@ import {
 import { z } from "zod";
 import { tools } from "./tools";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
-import { createInputGuardrailMiddleware } from "./middleware/inputGuardrail";
 import { createOpenRouterProvider } from "./lib/openrouter";
 import { createLogger, type Logger } from "./utils/logger";
 import { ContentRepository } from "./repositories/ContentRepository";
 import { ContactService } from "./services/ContactService";
+import type { ContentItem } from "./shared";
+import {
+  buildShareableHtml,
+  buildSitemapXml,
+  fetchShareableLinks,
+  getBaseIndexHtml,
+  getSeoDefaults
+} from "./utils/seo";
 import {
   DEFAULT_MAX_HISTORY_MESSAGES,
   DEFAULT_MAX_RETRIES,
@@ -31,6 +38,38 @@ import {
   API_ENDPOINTS
 } from "@/config/constants";
 import type { WebSocketConnection, StreamTextConfig, ChatStub } from "@/types";
+
+
+const fetchShareableContent = async (
+  env: Env,
+  logger: Logger,
+  shareableLink: string
+) => {
+  const id = env.Chat.idFromName("__content_fetcher__");
+  const chatStub = env.Chat.get(id) as unknown as ChatStub;
+  const result = (await (chatStub.fetchContentByShareableLink?.(
+    shareableLink
+  ) || Promise.resolve({ contentItem: null }))) as {
+    contentItem?: ContentItem | null;
+    allItems?: ContentItem[];
+    dataType?: string;
+    componentName?: string;
+    error?: string;
+  };
+
+  if (result.error) {
+    logger.error(
+      'fetch_shareable_link',
+      'Content fetch returned error',
+      result.error,
+      { linkId: shareableLink },
+      'api'
+    );
+  }
+
+  return result;
+};
+
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
@@ -555,10 +594,10 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     const sessionId = this.getConnectionId();
 
     // Create model with input guardrail middleware that has access to vector search
-    const inputGuardrailMiddleware = createInputGuardrailMiddleware(
-      this.contentRepository.queryVectorDatabase.bind(this.contentRepository),
-      this.env
-    );
+    // const inputGuardrailMiddleware = createInputGuardrailMiddleware(
+    //   this.contentRepository.queryVectorDatabase.bind(this.contentRepository),
+    //   this.env
+    // );
 
     // Wrap AI SDK with LangSmith for full tracing
     const { streamText } = wrapAISDK(ai);
@@ -685,6 +724,122 @@ export default {
       'api'
     );
 
+    const { baseUrl } = getSeoDefaults();
+
+    if (url.pathname === "/robots.txt" && request.method === "GET") {
+      const body = `User-agent: *\nAllow: /\nSitemap: ${baseUrl}/sitemap.xml\n`;
+      return new Response(body, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "public, max-age=3600"
+        }
+      });
+    }
+
+    if (url.pathname === "/sitemap.xml" && request.method === "GET") {
+      const shareableLinks = await fetchShareableLinks(env, logger);
+      const urls = [baseUrl + "/"]
+        .concat(
+          shareableLinks.map(
+            (link) => `${baseUrl}/?link=${encodeURIComponent(link)}`
+          )
+        );
+      const sitemap = buildSitemapXml(urls);
+      return new Response(sitemap, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/xml; charset=utf-8",
+          "Cache-Control": "public, max-age=3600"
+        }
+      });
+    }
+
+    if (url.pathname === "/" && request.method === "GET") {
+      const shareableLink = url.searchParams.get("link");
+      if (shareableLink) {
+        try {
+          logger.info(
+            'fetch_shareable_link',
+            'Rendering shareable link content for SSR',
+            { linkId: shareableLink },
+            'api'
+          );
+
+          const result = await fetchShareableContent(
+            env,
+            logger,
+            shareableLink
+          );
+
+          if (!result.contentItem) {
+            logger.warn(
+              'fetch_shareable_link',
+              'Content not found for SSR',
+              { linkId: shareableLink },
+              'api'
+            );
+            return new Response(
+              JSON.stringify({ error: "Content not found" }),
+              {
+                status: 404,
+                headers: { "Content-Type": "application/json" }
+              }
+            );
+          }
+
+          const baseHtml = await getBaseIndexHtml(request, env);
+          if (!baseHtml) {
+            logger.error(
+              'fetch_shareable_link',
+              'Failed to fetch base HTML for SSR',
+              undefined,
+              { linkId: shareableLink },
+              'api'
+            );
+            return new Response(
+              JSON.stringify({ error: "Failed to load base HTML" }),
+              {
+                status: 500,
+                headers: { "Content-Type": "application/json" }
+              }
+            );
+          }
+
+          const canonicalUrl = `${baseUrl}/?link=${encodeURIComponent(
+            shareableLink
+          )}`;
+          const html = buildShareableHtml(
+            baseHtml,
+            result.contentItem,
+            canonicalUrl
+          );
+          return new Response(html, {
+            status: 200,
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "public, max-age=300"
+            }
+          });
+        } catch (error) {
+          logger.error(
+            'fetch_shareable_link',
+            'SSR rendering failed for shareable link',
+            error,
+            { linkId: shareableLink },
+            'api'
+          );
+          return new Response(
+            JSON.stringify({ error: "Internal server error during SSR" }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json" }
+            }
+          );
+        }
+      }
+    }
+
     // Handle shareable link content fetching
     if (url.pathname === "/api/content" && request.method === "GET") {
       const shareableLink = url.searchParams.get("link");
@@ -709,18 +864,12 @@ export default {
           { linkId: shareableLink },
           'api'
         );
-        // Create a temporary Durable Object instance to access the database
-        // We use a deterministic ID so content can be fetched without a session
-        const id = env.Chat.idFromName("__content_fetcher__");
-        const chatStub = env.Chat.get(id) as unknown as ChatStub;
 
-        // Call the method on the Durable Object
-        const result = (await (chatStub.fetchContentByShareableLink?.(
+        const result = await fetchShareableContent(
+          env,
+          logger,
           shareableLink
-        ) || Promise.resolve({ contentItem: null }))) as {
-          contentItem?: unknown;
-          error?: string;
-        };
+        );
 
         if (!result.contentItem) {
           logger.info(
