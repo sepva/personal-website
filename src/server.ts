@@ -813,7 +813,8 @@ export default {
             headers: {
               "Content-Type": "text/html; charset=utf-8",
               "Cache-Control": "public, max-age=300",
-              "Content-Security-Policy": "frame-ancestors 'self' https://www.linkedin.com https://*.linkedin.com"
+              "Content-Security-Policy": "frame-ancestors *; frame-src *",
+              "X-Frame-Options": "ALLOWALL"
             }
           });
         } catch (error) {
@@ -840,7 +841,8 @@ export default {
           const response = await env.ASSETS.fetch(request);
           // Add CSP header to allow LinkedIn to embed the site
           const newHeaders = new Headers(response.headers);
-          newHeaders.set("Content-Security-Policy", "frame-ancestors 'self' https://www.linkedin.com https://*.linkedin.com");
+            newHeaders.set("Content-Security-Policy", "frame-ancestors *; frame-src *");
+            newHeaders.set("X-Frame-Options", "ALLOWALL");
           return new Response(response.body, {
             status: response.status,
             statusText: response.statusText,
@@ -983,7 +985,8 @@ export default {
       // Add CSP header to HTML responses to allow LinkedIn to embed the site
       if (response.headers.get("Content-Type")?.includes("text/html")) {
         const newHeaders = new Headers(response.headers);
-        newHeaders.set("Content-Security-Policy", "frame-ancestors 'self' https://www.linkedin.com https://*.linkedin.com");
+        newHeaders.set("Content-Security-Policy", "frame-ancestors *; frame-src *");
+        newHeaders.set("X-Frame-Options", "ALLOWALL");
         return new Response(response.body, {
           status: response.status,
           statusText: response.statusText,
