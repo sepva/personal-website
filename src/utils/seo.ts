@@ -81,7 +81,7 @@ const buildShareableSummary = (contentItem: ContentItem): string => {
   const link = contentItem.link ? escapeHtml(contentItem.link) : "";
 
   return `
-    <main class="shareable-content" role="main">
+    <main class="shareable-content" data-ssr-preview role="main" style="display: none;">
       <header>
         <h1>${title}</h1>
       </header>

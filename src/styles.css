@@ -394,3 +394,13 @@
     transform: rotate(360deg) scale(0.9);
   }
 }
+
+/* Hide SSR preview content until React hydration completes */
+.shareable-content[data-ssr-preview] {
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+.shareable-content[data-ssr-preview].ssr-hidden {
+  display: none;
+}

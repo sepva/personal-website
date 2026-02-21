@@ -43,6 +43,17 @@ export default function Chat() {
   const [shareableHistoryMessagesState, setShareableHistoryMessagesState] =
     useState<UIMessage[] | null>(null);
 
+  // Remove SSR preview once shareable content has loaded
+  useEffect(() => {
+    if (!shareableLinkLoading && customMessages.length > 2) {
+      const ssrPreview = document.querySelector('[data-ssr-preview]');
+      if (ssrPreview) {
+        // Add class to completely hide it after fade
+        ssrPreview.classList.add('ssr-hidden');
+      }
+    }
+  }, [shareableLinkLoading, customMessages]);
+
   // Sync shareable history messages from hook to local state
   useEffect(() => {
     if (shareableHistoryMessages && !shareableHistoryMessagesState) {
