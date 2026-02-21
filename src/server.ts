@@ -812,7 +812,8 @@ export default {
             status: 200,
             headers: {
               "Content-Type": "text/html; charset=utf-8",
-              "Cache-Control": "public, max-age=300"
+              "Cache-Control": "public, max-age=300",
+              "Content-Security-Policy": "frame-ancestors 'self' https://www.linkedin.com https://*.linkedin.com"
             }
           });
         } catch (error) {
@@ -836,7 +837,15 @@ export default {
         // @ts-expect-error - ASSETS is automatically provided by Cloudflare Workers
         if (env.ASSETS) {
           // @ts-expect-error - ASSETS.fetch is the standard way to serve static files
-          return env.ASSETS.fetch(request);
+          const response = await env.ASSETS.fetch(request);
+          // Add CSP header to allow LinkedIn to embed the site
+          const newHeaders = new Headers(response.headers);
+          newHeaders.set("Content-Security-Policy", "frame-ancestors 'self' https://www.linkedin.com https://*.linkedin.com");
+          return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: newHeaders
+          });
         }
       }
     }
@@ -970,7 +979,18 @@ export default {
     // @ts-expect-error - ASSETS is automatically provided by Cloudflare Workers
     if (env.ASSETS) {
       // @ts-expect-error - ASSETS.fetch is the standard way to serve static files
-      return env.ASSETS.fetch(request);
+      const response = await env.ASSETS.fetch(request);
+      // Add CSP header to HTML responses to allow LinkedIn to embed the site
+      if (response.headers.get("Content-Type")?.includes("text/html")) {
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set("Content-Security-Policy", "frame-ancestors 'self' https://www.linkedin.com https://*.linkedin.com");
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: newHeaders
+        });
+      }
+      return response;
     }
 
     return new Response("Not found", { status: 404 });
