@@ -3,7 +3,7 @@ import { streamText, stepCountIs } from "ai";
 import { tool } from "ai";
 import { z } from "zod/v3";
 import validationPrompt from "../instructions/input_validation_prompt.md?raw";
-import { createOpenRouterProvider } from "../lib/openrouter";
+import { createOpenAIProvider } from "../lib/openai";
 import { createLogger } from "../utils/logger";
 
 interface ValidationResult {
@@ -92,14 +92,14 @@ export function createInputGuardrailMiddleware(
       // Only validate if there are user messages
       if (conversationMessages.length > 0) {
         try {
-          // Create OpenRouter provider for guardrail validation
-          const { provider: openrouter, primaryModel } =
-            createOpenRouterProvider(env, env.OPENROUTER_GUARDRAIL_MODELS);
+          // Create OpenAI provider for guardrail validation
+          const { provider: openai, primaryModel } = createOpenAIProvider(
+            env,
+            env.OPENAI_GUARDRAIL_MODELS
+          );
 
-          // Use streamText (not generateText) to force /chat/completions endpoint
-          // generateText uses /responses which has incompatible tool schema
           const validationStream = streamText({
-            model: openrouter(primaryModel),
+            model: openai.chat(primaryModel),
             messages: [
               { role: "system", content: validationPrompt },
               ...conversationMessages.map((msg: any) => ({
@@ -116,7 +116,13 @@ export function createInputGuardrailMiddleware(
             },
             toolChoice: "auto", // Use 'auto' for compatibility with free models
             stopWhen: stepCountIs(5), // Allow up to 5 steps for validation with tools
-            temperature: 0.1
+            providerOptions: {
+              // gpt-5.4-mini rejects reasoning_effort other than "none" on
+              // /v1/chat/completions whenever function tools are present.
+              openai: {
+                reasoningEffort: "none"
+              }
+            }
           });
 
           let validation: ValidationResult | null = null;

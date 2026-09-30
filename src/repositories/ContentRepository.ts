@@ -84,7 +84,7 @@ export class ContentRepository {
     private db: D1Database,
     private ai: Ai,
     private vectorIndex: VectorizeIndex,
-    env: { LOGGER_LEVEL?: string; LOGGER_FORMAT?: 'json' | 'pretty' }
+    env: { LOGGER_LEVEL?: string; LOGGER_FORMAT?: string }
   ) {
     this.logger = createLogger('content', env);
   }

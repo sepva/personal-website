@@ -17,7 +17,7 @@ import {
 import { z } from "zod";
 import { tools } from "./tools";
 import systemPrompt from "./instructions/system_prompt_agent.md?raw";
-import { createOpenRouterProvider } from "./lib/openrouter";
+import { createOpenAIProvider } from "./lib/openai";
 import { createLogger, type Logger } from "./utils/logger";
 import { ContentRepository } from "./repositories/ContentRepository";
 import { ContactService } from "./services/ContactService";
@@ -602,15 +602,15 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
     // Wrap AI SDK with LangSmith for full tracing
     const { streamText } = wrapAISDK(ai);
 
-    // Create OpenRouter provider with model fallback chain
-    const { provider: openrouter, primaryModel } = createOpenRouterProvider(
+    // Create OpenAI provider with model fallback chain
+    const { provider: openai, primaryModel } = createOpenAIProvider(
       this.env,
-      this.env.OPENROUTER_MODELS
+      this.env.OPENAI_MODELS
     );
 
     // Wrap model with input guardrail middleware
     const model = wrapLanguageModel({
-      model: openrouter.chat(primaryModel),
+      model: openai.chat(primaryModel),
       middleware: []
       // middleware: inputGuardrailMiddleware
     });
@@ -645,10 +645,10 @@ export class Chat extends AIChatAgent<Env & Cloudflare.Env> {
         tools: allTools,
         stopWhen: stepCountIs(5), // Stop after 5 steps (enables multi-step tool calling)
         providerOptions: {
-          openrouter: {
-            reasoning: {
-              effort: "low" // Optimize for speed - only works with reasoning models (o1/o3, claude-3.7+, deepseek-r1)
-            }
+          // gpt-5.4-mini rejects reasoning_effort other than "none" on /v1/chat/completions
+          // whenever function tools are present (this agent always has tools available).
+          openai: {
+            reasoningEffort: "none"
           },
           langsmith: createLangSmithProviderOptions({
             metadata: {
@@ -835,9 +835,7 @@ export default {
         }
       } else {
         // No query param - serve static index.html via ASSETS
-        // @ts-expect-error - ASSETS is automatically provided by Cloudflare Workers
         if (env.ASSETS) {
-          // @ts-expect-error - ASSETS.fetch is the standard way to serve static files
           const response = await env.ASSETS.fetch(request);
           // Add CSP header to allow LinkedIn to embed the site
           const newHeaders = new Headers(response.headers);
@@ -978,9 +976,7 @@ export default {
     }
 
     // Serve other static assets
-    // @ts-expect-error - ASSETS is automatically provided by Cloudflare Workers
     if (env.ASSETS) {
-      // @ts-expect-error - ASSETS.fetch is the standard way to serve static files
       const response = await env.ASSETS.fetch(request);
       // Add CSP header to HTML responses to allow LinkedIn to embed the site
       if (response.headers.get("Content-Type")?.includes("text/html")) {

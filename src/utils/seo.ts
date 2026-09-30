@@ -227,12 +227,10 @@ export const getBaseIndexHtml = async (
   request: Request,
   env: Env
 ): Promise<string | null> => {
-  // @ts-expect-error - ASSETS is automatically provided by Cloudflare Workers
   if (!env.ASSETS) {
     return null;
   }
   const assetUrl = new URL("/index.html", request.url);
-  // @ts-expect-error - ASSETS.fetch is the standard way to serve static files
   const response = await env.ASSETS.fetch(new Request(assetUrl));
   if (!response.ok) {
     return null;

@@ -45,7 +45,7 @@ export interface LogEntry {
 
 interface Env {
   LOGGER_LEVEL?: string;
-  LOGGER_FORMAT?: 'json' | 'pretty';
+  LOGGER_FORMAT?: string;
 }
 
 export class Logger {
